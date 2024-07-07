@@ -1,0 +1,5 @@
+width = 1626
+height = 978
+position_x = 241
+position_y = 366
+fullscreen = false
