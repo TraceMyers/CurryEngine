@@ -7,12 +7,21 @@
 #import "GL";
 #import "Math";
 
+MIN_LEFT_BAR_WIDTH : s32 = 15;
+left_bar_width := 500;
+camera : Camera;
+tex_checker: Texture;
+sprite_checker: Sprite;
+camera_origin_y : float;
+on_ground := true;
+camera_velocity_y := 0.0;
+sprite_quat: Quaternion;
+
 main :: () {
     curry := create_curry();
     using curry;
 
     // --- runtime parameterization ---
-    window_settings.clear_color = .{0.2, 0.5, 0.5};
     render_in_separate_thread = true;
     delta_time_init = 1.0 / 120.0;
 
@@ -29,7 +38,6 @@ main :: () {
     run_game(*curry);
 }
 
-// always called from the game thread
 initialize_render_thread :: (curry: *Curry, dt: float32) {
     tex_checker = texture_create("checker.png", .{filter_minification=GL_NEAREST, filter_magnification=GL_NEAREST});
     sprite_checker = sprite_create(*tex_checker); 
@@ -39,43 +47,39 @@ initialize_render_thread :: (curry: *Curry, dt: float32) {
     camera_origin_y = camera.y;
 }
 
-// always called from the game thread
 initialize_game_thread :: (curry: *Curry, dt: float32) {
 
 }
 
-// always called from the game thread
-// called before key/mouse/controller input is processed, at the beginning of the frame.
 pre_input :: (curry: *Curry, dt: float32) { 
 
 }
 
-// always called from the game thread
-// called before clearing the canvas and turning over to the next frame.
 pre_render :: (curry: *Curry, dt: float32) { 
+    CAM_SPEED :: 25.0;
+    if key_down(#char "w") then camera.z -= CAM_SPEED * dt;
+    if key_down(#char "s") then camera.z += CAM_SPEED * dt;
+    if key_down(#char "d") then camera.x += CAM_SPEED * dt;
+    if key_down(#char "a") then camera.x -= CAM_SPEED * dt;
+    if key_just_pressed(#char "j") && on_ground {
+        on_ground = false;
+        camera_velocity_y = 60.0;
+    }
 
+    camera_velocity_y -= 98.0 * dt;
+    camera.y += camera_velocity_y * dt;
+
+    if camera.y < camera_origin_y {
+        on_ground = true;
+        camera.y = camera_origin_y;
+        camera_velocity_y = 0.0;
+    }
 }
 
-// always called from the game thread
-// if render_on_separate_thread is true, the order of events is: 1. wait for render thread to finish working.
-// 2. call init_render_proc, 3. signal render thread to start working.
-// if render_on_separate_thread is false, this is called just before render_in_game_thread_proc
 init_render :: (curry: *Curry, dt: float32) {
 
 }
 
-MIN_LEFT_BAR_WIDTH : s32 = 15;
-left_bar_width := 500;
-camera : Camera;
-tex_checker: Texture;
-sprite_checker: Sprite;
-camera_origin_y : float;
-on_ground := true;
-camera_velocity_y := 0.0;
-sprite_quat: Quaternion;
-
-// if render_on_separate_thread is true, called from the render thread, else from the game thread
-// called between resetting draw data (reset viewports, clear draw & depth buffers) and advancing the frame.
 render :: (using curry: *Curry, dt: float32) { 
     top_bar_height: s32;
     if (ImGui.BeginMainMenuBar()) {
@@ -97,26 +101,6 @@ render :: (using curry: *Curry, dt: float32) {
     if (ImGui.Begin("Left Side Bar", null, xx LEFT_BAR_FLAGS)) {
         ImGui.ColorEdit3("clear color", xx *curry.window_settings.clear_color.r);
         ImGui.End();
-    }
-
-    // screenspace_camera := camera_create(.ORTHOGRAPHIC, ._2D, ViewSettingsOrthographic.{use_screenspace=true});
-    CAM_SPEED :: 25.0;
-    if key_down(#char "w") then camera.z -= CAM_SPEED * dt;
-    if key_down(#char "s") then camera.z += CAM_SPEED * dt;
-    if key_down(#char "d") then camera.x += CAM_SPEED * dt;
-    if key_down(#char "a") then camera.x -= CAM_SPEED * dt;
-    if key_down(#char "j") && on_ground {
-        on_ground = false;
-        camera_velocity_y = 60.0;
-    }
-
-    camera_velocity_y -= 98.0 * dt;
-    camera.y += camera_velocity_y * dt;
-
-    if camera.y < camera_origin_y {
-        on_ground = true;
-        camera.y = camera_origin_y;
-        camera_velocity_y = 0.0;
     }
 
     // game viewport
@@ -216,8 +200,6 @@ render :: (using curry: *Curry, dt: float32) {
     pop_viewport();
 }
 
-// always called from the game thread
-// called just before setting the new delta_time and resetting temporary storage
 end_frame :: (curry: *Curry, dt: float32) { 
 
 }
