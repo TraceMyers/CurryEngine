@@ -143,6 +143,7 @@ deinit_run :: (using curry: *Curry) {
 #import "Math";
 #import "SDL";
 #import "stb_image";
+#import "stb_image_write";
 #import "File";
 #import "Thread";
 #import "Atomics";

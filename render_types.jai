@@ -49,6 +49,7 @@ Texture :: struct {
     render_id: u32;
     slot: u32;
     using image: Image;
+    creation_info: TextureCreationInfo;
 }
 
 INVALID_SHADER_ID : u32 : U32_MAX;

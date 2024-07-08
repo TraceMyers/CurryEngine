@@ -78,7 +78,7 @@ END);
     print_to_builder(*builder,
 #string END
 pixel_tag_to_type :: (e: $PixelTag) -> Type {
-    if e == {
+    if #complete e == {
 END);
     for name : info.names {
         print_to_builder(*builder, "case .%; return %;\n", name, name);
@@ -91,7 +91,7 @@ END);
     print_to_builder(*builder,
 #string END
 pixel_size :: (e: PixelTag) -> s64 {
-    if e == {
+    if #complete e == {
 END);
     for name : info.names {
         print_to_builder(*builder, "case .%; return size_of(%);\n", name, name);
@@ -104,7 +104,7 @@ END);
     print_to_builder(*builder,
 #string END 
 pixel_channels :: (e: PixelTag) -> s64 {
-    if e == {
+    if #complete e == {
 END);
     for name : info.names {
         print_to_builder(*builder, "case .%; return %.FIELD_COUNT;\n", name, name);

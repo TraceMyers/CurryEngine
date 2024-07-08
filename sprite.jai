@@ -1,7 +1,15 @@
 
+// stbi_write_func :: #type (_context: *void, data: *void, size: s32) -> void #c_call;
+//
+// stbi_write_png_to_func :: (
+    // func: stbi_write_func, _context: *void, w: s32, h: s32, comp: s32, data: *void, stride_in_bytes: s32
+// ) -> s32 #foreign stb_image_write;
+
 SpriteSaveData :: struct {
     file_path: string;
     header: SpriteHeader;
+    texture_creation_info: TextureCreationInfo;
+    use_context: *Context;
 }
 
 SpriteHeader :: struct {
@@ -51,35 +59,66 @@ sprites_deinit :: () {
 }
 
 sprite_save_stbi_callback :: (_context: *void, data: *void, size: s32) -> void #c_call {
-    save_data = cast(*SpriteSaveData) _context;
-    f := file_open(save_data.file_path, for_writing=true);
-    defer file_close(*f);
-    header_string: string = .{size_of(SpriteHeader), xx *save_data.header};
-    data_string: string = .{size, xx data};
-    file_write(*f, header_string);
-    file_write(*f, data_string);
+    save_data := cast(*SpriteSaveData) _context;
+    // it's illegal to call jai procedures in a c_call unless we push a context. all jai procedures require a backing
+    // context, but c functions have none.
+    push_context <<save_data.use_context {
+        f := file_open(save_data.file_path, for_writing=true);
+        defer file_close(*f);
+        header_string: string = .{size_of(SpriteHeader), xx *save_data.header};
+        creation_info_string: string = .{size_of(TextureCreationInfo), xx *save_data.texture_creation_info};
+        data_string: string = .{size, xx data};
+        file_write(*f, header_string);
+        file_write(*f, creation_info_string);
+        file_write(*f, data_string);
+    }
 }
 
 sprite_save :: (using sprite: *Sprite, file_path: string) {
     channels := pixel_channels(texture.pixel_tag);
     row_size := pixel_size(texture.pixel_tag) * texture.width;
-    save_data := SpriteSaveData.{file_path, header};
+    save_data := SpriteSaveData.{file_path, header, texture.creation_info, *context};
     stbi_write_png_to_func(
-        sprite_save_stbi_callback, xx *save_data, texture.width, texture.height, xx channels, texture.data, xx row_size
+        sprite_save_stbi_callback, 
+        xx *save_data, 
+        texture.width, 
+        texture.height, 
+        xx channels, 
+        texture.raw_data.data, 
+        xx row_size
     ); 
 }
 
 sprite_load :: (file_path: string) -> Sprite {
-    header: SpriteHeader = ---;
-    f := file_open(save_data.file_path, keep_existing_content=true);
+    stbi_set_flip_vertically_on_load(0);
+    defer stbi_set_flip_vertically_on_load(1);
+    f := file_open(file_path, keep_existing_content=true);
     defer file_close(*f);
-    success = file_read(f, *header, size_of(SpriteHeader));
-    // TODO: no assert?
-    assert(success);
+    file_string, read_file_success := read_entire_file(f);
+    assert(read_file_success);
+    defer free(file_string);
+
+    header: SpriteHeader = ---;
+    memcpy(*header, file_string.data, size_of(SpriteHeader));
+    file_string = String.slice(file_string, size_of(SpriteHeader), file_string.count - size_of(SpriteHeader));
+
+    creation_info: TextureCreationInfo = ---;
+    memcpy(*creation_info, file_string.data, size_of(TextureCreationInfo));
+    file_string = String.slice(file_string, size_of(TextureCreationInfo), file_string.count - size_of(TextureCreationInfo));
+
     width, height, channel_count: s32;
-    data: *u8 = stbi_load_from_file(*f, *width, *height, *channel_count, 4);
+    assert(read_file_success);
+    data: *u8 = stbi_load_from_memory(
+        file_string.data, 
+        xx file_string.count,
+        *width,
+        *height,
+        *channel_count,
+        4
+    );
+
     image := image_create(data, width, height, .SPRITE_ANIMATION, .STBI);
-    tex := texture_create(image, .{});
+    tex := texture_create(image, creation_info);
     return sprite_create(*tex, header);
 }
 

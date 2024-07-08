@@ -262,6 +262,7 @@ texture_delete :: (tex: *Texture) {
 // TODO: delete_local
 texture_create_on_gpu :: (tex: *Texture, creation_info: *TextureCreationInfo) {
     tex.slot = creation_info.slot;
+    tex.creation_info = <<creation_info;
     gl_assert(glGenTextures(1, *tex.render_id));
     texture_bind(tex, xx creation_info.slot);
     gl_assert(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, creation_info.filter_minification));

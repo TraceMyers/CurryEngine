@@ -16,6 +16,7 @@ camera_origin_y : float;
 on_ground := true;
 camera_velocity_y := 0.0;
 sprite_quat: Quaternion;
+log_interval_counter := 0;
 
 main :: () {
     curry := create_curry();
@@ -38,13 +39,20 @@ main :: () {
     run_game(*curry);
 }
 
+
 initialize_render_thread :: (curry: *Curry, dt: float32) {
-    tex_checker = texture_create("checker.png", .{filter_minification=GL_NEAREST, filter_magnification=GL_NEAREST});
-    sprite_checker = sprite_create(*tex_checker); 
-    sprite_checker.scale = 1.0;
-    camera = camera_create(.PERSPECTIVE, ._2D, ViewSettingsPerspective.{});
+    camera = camera_create(.PERSPECTIVE, ._3D, ViewSettingsPerspective.{});
     camera.perspective_settings.vertical_fov_degrees = 80;
     camera_origin_y = camera.y;
+    if false {
+        tex_checker = texture_create("checker.png", .{filter_minification=GL_NEAREST, filter_magnification=GL_NEAREST});
+        sprite_checker = sprite_create(*tex_checker); 
+        sprite_checker.scale = 1.0;
+        sprite_checker.frame_count = 8;
+        sprite_save(*sprite_checker, "test_checker.cspr");
+    } else {
+        sprite_checker = sprite_load("test_checker.cspr");
+    }
 }
 
 initialize_game_thread :: (curry: *Curry, dt: float32) {
@@ -57,10 +65,29 @@ pre_input :: (curry: *Curry, dt: float32) {
 
 pre_render :: (curry: *Curry, dt: float32) { 
     CAM_SPEED :: 25.0;
-    if key_down(#char "w") then camera.z -= CAM_SPEED * dt;
-    if key_down(#char "s") then camera.z += CAM_SPEED * dt;
-    if key_down(#char "d") then camera.x += CAM_SPEED * dt;
-    if key_down(#char "a") then camera.x -= CAM_SPEED * dt;
+    cam_fore := camera_forward(*camera);
+    // (potentially not true)
+    cam_right := camera_right(*camera);
+    if key_down(#char "w") then camera.position += cam_fore * CAM_SPEED * dt;
+    if key_down(#char "s") then camera.position -= cam_fore * CAM_SPEED * dt;
+    if key_down(#char "d") then camera.position += cam_right * CAM_SPEED * dt;
+    if key_down(#char "a") then camera.position -= cam_right * CAM_SPEED * dt;
+
+    CAM_ROTATE_SPEED :: PI;
+    rotate_sign := 
+        ifx key_down(#char "q") then 1.0 
+        else ifx key_down(#char "e") then -1.0
+        else 0.0;
+    if rotate_sign {
+        rotate_delta := rotate_sign * CAM_ROTATE_SPEED * dt * 0.5;            
+        axis_rotation := Vector3.{0.0, 1.0, 0.0} * sin(rotate_delta);
+        rotate_quat: Quaternion = ---;
+        rotate_quat.xyz = axis_rotation;
+        rotate_quat.w = cos(rotate_delta);
+        camera.orientation *= rotate_quat;
+    }
+
+    // jump
     if key_just_pressed(#char "j") && on_ground {
         on_ground = false;
         camera_velocity_y = 60.0;
@@ -77,7 +104,7 @@ pre_render :: (curry: *Curry, dt: float32) {
 }
 
 init_render :: (curry: *Curry, dt: float32) {
-
+    sprite_animate(*sprite_checker, dt);
 }
 
 render :: (using curry: *Curry, dt: float32) { 
@@ -100,6 +127,7 @@ render :: (using curry: *Curry, dt: float32) {
     LEFT_BAR_FLAGS : ImGui.WindowFlags : .NoTitleBar | .NoMove | .NoResize;
     if (ImGui.Begin("Left Side Bar", null, xx LEFT_BAR_FLAGS)) {
         ImGui.ColorEdit3("clear color", xx *curry.window_settings.clear_color.r);
+        ImGui.Text("fps: %", 1.0 / dt);
         ImGui.End();
     }
 
@@ -112,64 +140,64 @@ render :: (using curry: *Curry, dt: float32) {
     });
 
     // left view
-    push_viewport(.{offset_right.proportion=0.5});
-    cache_viewport_rect(curry);
-    viewport_rect := last_cached_viewport_rect();
-    draw_screenspace_line(.{-10.0, 0.0}, .{490.0, 1000.0}, COLOR4B_SKY, 20.0, ._2);
-    draw_screenspace_line(.{-20.0, 0.0}, .{480.0, 1000.0}, COLOR4B_SALMON, 20.0, ._3);
-    draw_screenspace_line(.{0.0, 0.0}, .{500.0, 1000.0}, COLOR4B_SEA, 20.0, ._1);
-    draw_screenspace_box(
-        .{0.0, 0.0},
-        .{xx curry.window_settings.width, xx curry.window_settings.height},
-        .{192, 10, 10, 30},
-        0.0,
-        ._4,
-        true
-    );
-    draw_screenspace_box(
-        .{0.0, 0.0},
-        .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
-        .{200, 200, 200, 255},
-        4.0,
-        ._10
-    );
-    pop_viewport();
-    
-
-    // right view
-    push_viewport(.{offset_left.proportion=0.5});
-
-    // bottom right
-    push_viewport(.{offset_top.proportion=0.5});
-    cache_viewport_rect(curry);
-    viewport_rect = last_cached_viewport_rect();
-    draw_screenspace_line(.{-10.0, 0.0}, .{490.0, 1000.0}, COLOR4B_SKY, 20.0, ._1);
-    draw_screenspace_line(.{-20.0, 0.0}, .{480.0, 1000.0}, COLOR4B_SALMON, 20.0, ._2);
-    draw_screenspace_line(.{0.0, 0.0}, .{500.0, 1000.0}, COLOR4B_SEA, 20.0, ._0);
-    draw_screenspace_box(
-        .{0.0, 0.0},
-        .{xx curry.window_settings.width, xx curry.window_settings.height},
-        .{10, 192, 10, 30},
-        0.0,
-        ._4,
-        true
-    );
-    draw_screenspace_box(
-        .{0.0, 0.0},
-        .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
-        .{200, 200, 200, 255},
-        4.0,
-        ._10
-    );
-    pop_viewport();
+    // push_viewport(.{offset_right.proportion=0.5});
+    // cache_viewport_rect(curry);
+    // viewport_rect := last_cached_viewport_rect();
+    // draw_screenspace_line(.{-10.0, 0.0}, .{490.0, 1000.0}, COLOR4B_SKY, 20.0, ._2);
+    // draw_screenspace_line(.{-20.0, 0.0}, .{480.0, 1000.0}, COLOR4B_SALMON, 20.0, ._3);
+    // draw_screenspace_line(.{0.0, 0.0}, .{500.0, 1000.0}, COLOR4B_SEA, 20.0, ._1);
+    // draw_screenspace_box(
+        // .{0.0, 0.0},
+        // .{xx curry.window_settings.width, xx curry.window_settings.height},
+        // .{192, 10, 10, 30},
+        // 0.0,
+        // ._4,
+        // true
+    // );
+    // draw_screenspace_box(
+        // .{0.0, 0.0},
+        // .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
+        // .{200, 200, 200, 255},
+        // 4.0,
+        // ._10
+    // );
+    // pop_viewport();
+    //
+//
+    // // right view
+    // push_viewport(.{offset_left.proportion=0.5});
+//
+    // // bottom right
+    // push_viewport(.{offset_top.proportion=0.5});
+    // cache_viewport_rect(curry);
+    // viewport_rect = last_cached_viewport_rect();
+    // draw_screenspace_line(.{-10.0, 0.0}, .{490.0, 1000.0}, COLOR4B_SKY, 20.0, ._1);
+    // draw_screenspace_line(.{-20.0, 0.0}, .{480.0, 1000.0}, COLOR4B_SALMON, 20.0, ._2);
+    // draw_screenspace_line(.{0.0, 0.0}, .{500.0, 1000.0}, COLOR4B_SEA, 20.0, ._0);
+    // draw_screenspace_box(
+        // .{0.0, 0.0},
+        // .{xx curry.window_settings.width, xx curry.window_settings.height},
+        // .{10, 192, 10, 30},
+        // 0.0,
+        // ._4,
+        // true
+    // );
+    // draw_screenspace_box(
+        // .{0.0, 0.0},
+        // .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
+        // .{200, 200, 200, 255},
+        // 4.0,
+        // ._10
+    // );
+    // pop_viewport();
 
     // top right
-    push_viewport(.{offset_bottom.proportion=0.5});
+    // push_viewport(.{offset_bottom.proportion=0.5});
     cache_viewport_rect(curry);
 
     // after camera moves...
     set_viewport_for_draw(last_cached_viewport());
-    viewport_rect = last_cached_viewport_rect();
+    viewport_rect := last_cached_viewport_rect();
     view_projection := viewport_view_projection_matrix(camera, viewport_rect);
 
     sprite_location_mat: Matrix4 = ---;
@@ -196,8 +224,8 @@ render :: (using curry: *Curry, dt: float32) {
     );
 
     pop_viewport();
-    pop_viewport();
-    pop_viewport();
+    // pop_viewport();
+    // pop_viewport();
 }
 
 end_frame :: (curry: *Curry, dt: float32) { 
