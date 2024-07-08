@@ -38,6 +38,8 @@ MAX_VIEWPORT_RECT_COUNT :: 512;
 viewport_hierarchy: []Viewport;
 viewport_hierarchy_buffer: [MAX_VIEWPORT_DEPTH]Viewport;
 viewport_rects: [..]ViewportRect;
+cached_window_width_for_viewports: s32;
+cached_window_height_for_viewports: s32;
 
 init_viewports :: () {
     viewport_hierarchy.data = *viewport_hierarchy_buffer[0];
@@ -49,6 +51,7 @@ push_viewport :: (v := Viewport.{}, do_cache := false) -> s32 {
     assert(viewport_hierarchy.count < MAX_VIEWPORT_DEPTH);
     viewport_hierarchy.count += 1;
     viewport_hierarchy[index] = v;
+    if do_cache then cache_viewport_rect();
     return xx index;
 }
 
@@ -65,16 +68,19 @@ reset_viewports :: (curry: *Curry, push_window_viewport := true) {
     }
     array_reset(*viewport_rects);
 
+    cached_window_width_for_viewports = curry.window_settings.width;
+    cached_window_height_for_viewports = curry.window_settings.height;
+
     if push_window_viewport {
         push_viewport();
-        cache_viewport_rect(curry);
+        cache_viewport_rect();
     }
 }
 
-cache_viewport_rect :: (curry: *Curry) -> s32 {
+cache_viewport_rect :: () -> s32 {
     assert(viewport_rects.count < MAX_VIEWPORT_RECT_COUNT);
-    remain_width := curry.window_settings.width;
-    remain_height := curry.window_settings.height;
+    remain_width := cached_window_width_for_viewports;
+    remain_height := cached_window_height_for_viewports;
     rect: ViewportRect;
     rect.bottom_left = .{0, 0};
     rect.dimensions = .{remain_width, remain_height};
@@ -107,4 +113,27 @@ last_cached_viewport :: inline () -> s64 {
 
 last_cached_viewport_rect :: inline () -> ViewportRect {
     return viewport_rects[last_cached_viewport()];
+}
+
+highlight_last_cached_viewport :: () {
+    viewport_rect := last_cached_viewport_rect();
+    fill_color := COLOR4B_YELLOW;
+    fill_color.a = 25;
+    outline_color := COLOR4B_WHITE;
+    outline_color.a = 100;
+    draw_screenspace_box(
+        .{0.0, 0.0},
+        .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
+        fill_color,
+        0.0,
+        ._63,
+        true
+    );
+    draw_screenspace_box(
+        .{0.0, 0.0},
+        .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
+        outline_color,
+        8.0,
+        ._63
+    );
 }

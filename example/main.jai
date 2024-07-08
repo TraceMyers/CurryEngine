@@ -4,8 +4,8 @@
     INCLUDE_IMGUI=true
 );
 #import "Basic";
-#import "GL";
 #import "Math";
+#import "GL";
 
 MIN_LEFT_BAR_WIDTH : s32 = 15;
 left_bar_width := 500;

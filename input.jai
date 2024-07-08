@@ -56,7 +56,7 @@ MouseState :: struct {
 INVALID_MOUSE_POSITION :: IntVector2.{-1, -1};
 
 mouse_window_position_invalid :: () -> bool {
-    return mouse.window_position == INVALID_MOUSE_POSITION;
+    return mouse.window_position.x == INVALID_MOUSE_POSITION.x && mouse.window_position.y == INVALID_MOUSE_POSITION.y;
 }
 
 // TODO: bring over zig implementation that with multiple 'player/controller' support and bindings
@@ -69,6 +69,11 @@ update_input :: (curry: *Curry) {
     switch_readings: [SDL_NUM_SCANCODES]SwitchReading;
     mouse_readings: [3]SwitchReading;
     #if INCLUDE_IMGUI imgui_io := ImGui.GetIO();
+
+    SDL_GetMouseState(*mouse.x, *mouse.y);
+    if mouse.y != -1 {
+        mouse.y = curry.window_settings.height - mouse.y;
+    }
 
     mouse.wheel = .NOT_SCROLLING;
 

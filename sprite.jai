@@ -1,10 +1,4 @@
 
-// stbi_write_func :: #type (_context: *void, data: *void, size: s32) -> void #c_call;
-//
-// stbi_write_png_to_func :: (
-    // func: stbi_write_func, _context: *void, w: s32, h: s32, comp: s32, data: *void, stride_in_bytes: s32
-// ) -> s32 #foreign stb_image_write;
-
 SpriteSaveData :: struct {
     file_path: string;
     header: SpriteHeader;
@@ -174,6 +168,7 @@ sprite_animate :: (using sprite: *Sprite, delta_time: float) {
     }
 }
 
+// TODO: all sprites just have a z of -1 lol
 sprite_tri_vert := #string END
     #version 330
 
