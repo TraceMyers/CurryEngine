@@ -1,25 +1,40 @@
 #if INCLUDE_IMGUI ImGui :: #import "ImGui";
 
-imgui_init :: (curry: *Curry) -> bool {
-    #if INCLUDE_IMGUI then return imgui_init_impl(curry);
+imgui_init :: () -> bool {
+    #if INCLUDE_IMGUI then return imgui_init_impl();
     else return false;
 }
 
-imgui_deinit :: (curry: *Curry) {
-    #if INCLUDE_IMGUI then imgui_deinit_impl(curry);
+imgui_deinit :: () {
+    #if INCLUDE_IMGUI then imgui_deinit_impl();
 }
 
-imgui_new_frame :: (curry: *Curry) {
+imgui_new_frame :: () {
     #if INCLUDE_IMGUI {
-        imgui_new_frame_impl(curry);
+        imgui_new_frame_impl();
         ImGui.NewFrame();
     }
 }
 
-imgui_render :: (curry: *Curry) {
+imgui_render :: () {
     #if INCLUDE_IMGUI {
         ImGui.Render();
-        imgui_render_impl(curry);
+        imgui_render_impl();
+    }
+}
+
+imgui_set_cursor :: () {
+    #if INCLUDE_IMGUI {
+        using context.curry.gui_data;
+        if ImGui.GetMouseCursor() == {
+            case .Arrow;         SDL_SetCursor(cursor_arrow);
+            case .TextInput;     SDL_SetCursor(cursor_text_input);
+            case .Hand;          SDL_SetCursor(cursor_move);
+            case .ResizeNS;      SDL_SetCursor(cursor_resize_ns);
+            case .ResizeEW;      SDL_SetCursor(cursor_resize_ew);
+            case .ResizeNESW;    SDL_SetCursor(cursor_resize_nesw);
+            case .ResizeNWSE;    SDL_SetCursor(cursor_resize_nwse);
+        }
     }
 }
 
@@ -31,7 +46,7 @@ imgui_set_clipboard_text :: (data: *void, text: *u8) #c_call {
     SDL_SetClipboardText(text);
 }
 
-imgui_init_impl :: (curry: *Curry) -> bool {
+imgui_init_impl :: () -> bool {
     io := ImGui.GetIO();
     // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array.
     io.KeyMap[ImGui.Key.Tab] = xx SDLK_TAB;                     
@@ -61,11 +76,11 @@ imgui_init_impl :: (curry: *Curry) -> bool {
     #if OS == .WINDOWS {
         wmInfo: SDL_SysWMinfo ;
         SDL_VERSION(*wmInfo.version);
-        SDL_GetWindowWMInfo(curry.window, *wmInfo);
+        SDL_GetWindowWMInfo(context.curry.window, *wmInfo);
         io.ImeWindowHandle = wmInfo.info.win.window;
     }
 
-    using curry.gui_data;
+    using context.curry.gui_data;
 
     cursor_arrow = SDL_CreateSystemCursor(.ARROW);
     cursor_text_input = SDL_CreateSystemCursor(.IBEAM);
@@ -77,14 +92,14 @@ imgui_init_impl :: (curry: *Curry) -> bool {
 
     ImGui.StyleColorsClassic();
 
-    imgui_create_device_objects(curry);
+    imgui_create_device_objects();
 
     initialized = xx true;
     return true;
 }
 
-imgui_create_device_objects :: (curry: *Curry) {
-    using curry.gui_data;
+imgui_create_device_objects :: () {
+    using context.curry.gui_data;
 
     vertex_shader := #string END
         #version 330
@@ -128,12 +143,12 @@ imgui_create_device_objects :: (curry: *Curry) {
     va = vertex_array_create();
     vertex_array_add_buffer(*va, *vb, ImguiVertexType, shader.render_id, "Position", "UV", "Color");
 
-    imgui_create_fonts_texture(curry);
+    imgui_create_fonts_texture();
 }
 
-imgui_create_fonts_texture :: (curry: *Curry) {
+imgui_create_fonts_texture :: () {
     io := ImGui.GetIO();
-    using curry.gui_data;
+    using context.curry.gui_data;
     bpp: s32;
     io.Fonts.GetTexDataAsAlpha8(io.Fonts, *font_texture.raw_data.data, *font_texture.width, *font_texture.height, *bpp);
     font_texture.pixel_tag = .R8;
@@ -142,8 +157,8 @@ imgui_create_fonts_texture :: (curry: *Curry) {
     io.Fonts.TexID = xx font_texture.render_id;
 }
 
-imgui_deinit_impl :: (curry: *Curry) {
-    using curry.gui_data;
+imgui_deinit_impl :: () {
+    using context.curry.gui_data;
     shader_delete(*shader);
     vertex_buffer_delete(*vb);
     index_buffer_delete(*ib);
@@ -154,8 +169,8 @@ imgui_deinit_impl :: (curry: *Curry) {
     ImGui.DestroyContext(imgui_context);
 }
 
-imgui_new_frame_impl :: (using curry: *Curry) {
-    // if !gui_data.font_texture.render_id then imgui_create_device_objects(curry);
+imgui_new_frame_impl :: () {
+    using context.curry;
     io := ImGui.GetIO();
 
     width, height: s32;
@@ -186,11 +201,12 @@ imgui_new_frame_impl :: (using curry: *Curry) {
     SDL_ShowCursor(xx (io.MouseDrawCursor == false));
 }
 
-imgui_render_impl :: (using curry: *Curry) {
+imgui_render_impl :: () {
+    using context.curry;
     graphics_settings: GraphicsAPISettings = ---;
     cache_graphics_api_settings(*graphics_settings);
     #if GRAPHICS_API == .OPENGL {
-        imgui_opengl_render(curry);
+        imgui_opengl_render();
     }
     set_graphics_api_settings(*graphics_settings);
 }

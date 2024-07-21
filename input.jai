@@ -43,6 +43,7 @@ MouseState :: struct {
     right: SwitchInput;
     middle: SwitchInput;
     wheel: MouseWheelState;
+    wheel_value: float32;
     using window_position: IntVector2;
 
 #place left;
@@ -51,6 +52,18 @@ MouseState :: struct {
     MOUSE_LEFT :: 0;
     MOUSE_RIGHT :: 1;
     MOUSE_MIDDLE :: 2;
+}
+
+window_pos_y_flip :: (pos: Vector2) -> Vector2 {
+    return .{pos.x, xx context.curry.window_settings.height - pos.y};
+}
+
+window_pos_y_flip :: (pos_y: float32) -> float32 {
+    return xx context.curry.window_settings.height - pos_y;
+}
+
+window_pos_y_flip :: (pos: IntVector2) -> IntVector2 {
+    return .{pos.x, context.curry.window_settings.height - pos.y};
 }
 
 INVALID_MOUSE_POSITION :: IntVector2.{-1, -1};
@@ -63,7 +76,7 @@ mouse_window_position_invalid :: () -> bool {
 mouse: MouseState;
 switches: [SDL_NUM_SCANCODES]SwitchInput;
 
-update_input :: (curry: *Curry) {
+update_input :: () {
     SCANCODE_MASK :: ~(1<<30);
 
     switch_readings: [SDL_NUM_SCANCODES]SwitchReading;
@@ -72,19 +85,21 @@ update_input :: (curry: *Curry) {
 
     SDL_GetMouseState(*mouse.x, *mouse.y);
     if mouse.y != -1 {
-        mouse.y = curry.window_settings.height - mouse.y;
+        mouse.y = context.curry.window_settings.height - mouse.y;
     }
 
     mouse.wheel = .NOT_SCROLLING;
+    mouse.wheel_value = 0.0;
 
     event: SDL_Event;
     while SDL_PollEvent(*event) {
         if event.type == {
         case SDL_QUIT;
-            curry.quit = true;
+            context.curry.quit = true;
         case SDL_MOUSEWHEEL;
             if event.wheel.y > 0 then mouse.wheel = .SCROLLING_UP;
             if event.wheel.y < 0 then mouse.wheel = .SCROLLING_DOWN;
+            mouse.wheel_value = xx event.wheel.y;
         case SDL_MOUSEBUTTONDOWN; #through;
         case SDL_MOUSEBUTTONUP;
             button_index := -1;
@@ -100,13 +115,13 @@ update_input :: (curry: *Curry) {
             }
         case SDL_TEXTINPUT;
             #if INCLUDE_IMGUI {
-                if curry.frame_count == 0 then continue;
+                if context.curry.frame_count == 0 then continue;
                 imgui_io.AddInputCharactersUTF8(imgui_io, xx event.text.text.data);
             }
         case SDL_KEYDOWN; #through;
         case SDL_KEYUP;
             if event.key.keysym.sym == SDLK_ESCAPE
-                then curry.quit = true;
+                then context.curry.quit = true;
 
             key := event.key.keysym.sym & (xx SCANCODE_MASK);
             key_is_down := event.type == SDL_KEYDOWN;
@@ -116,7 +131,7 @@ update_input :: (curry: *Curry) {
 
             // TODO: handle modifiers outside of ImGui
             #if INCLUDE_IMGUI {
-                if curry.frame_count == 0 then continue;
+                if context.curry.frame_count == 0 then continue;
                 imgui_io.KeysDown[key] = key_is_down;
                 kmod := SDL_GetModState();
                 imgui_io.KeyShift = ((kmod & KMOD_SHIFT) != 0);
@@ -130,11 +145,11 @@ update_input :: (curry: *Curry) {
     #if INCLUDE_IMGUI {
         if mouse.wheel == {
         case .NOT_SCROLLING;
-            curry.gui_data.mouse_wheel = 0.0;
+            context.curry.gui_data.mouse_wheel = 0.0;
         case .SCROLLING_UP;
-            curry.gui_data.mouse_wheel = 1.0;
+            context.curry.gui_data.mouse_wheel = 1.0;
         case .SCROLLING_DOWN;
-            curry.gui_data.mouse_wheel = -1.0;
+            context.curry.gui_data.mouse_wheel = -1.0;
         }
     }
 

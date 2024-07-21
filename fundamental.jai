@@ -18,6 +18,11 @@ deref_Any :: (val: Any, $ToType: Type) -> ToType #expand {
     return <<cast(*ToType) val.value_pointer;
 }
 
+ContextCurry :: struct {
+    using #as base: Context_Base;
+    using curry: Curry;
+}
+
 GraphicsAPI :: enum {
     OPENGL;
     VULKAN;
@@ -68,14 +73,13 @@ WindowSettings :: struct {
     }
 }
 
-UserProc :: #type (*Curry, float);
+UserProc :: #type ();
 
-run_user_proc :: (p: UserProc, curry: *Curry) #expand {
+run_user_proc :: (p: UserProc) #expand {
     if p != null {
-        if xx context.thread_index == curry.game_thread_id {
-            p(curry, curry.delta_time);
-        } else if xx context.thread_index == curry.render_thread_id {
-            p(curry, curry.render_synced_delta_time);
+        if xx context.thread_index == context.curry.game_thread_id 
+        || xx context.thread_index == context.curry.render_thread_id {
+            p();
         } else assert(false);
     }
 }
@@ -84,8 +88,8 @@ get_current_time :: () -> u64 {
     return SDL_GetPerformanceCounter();
 }
 
-time_since_frame_start :: (curry: *Curry) -> float32 {
-    return time_since(curry.frame_start_time);
+time_since_frame_start :: () -> float32 {
+    return time_since(context.curry.frame_start_time);
 }
 
 time_since :: (time_stamp: u64) -> float64 {
@@ -108,7 +112,7 @@ timer_init :: () {
     }
 }
 
-wait_for_condition_proc :: #type (curry: *Curry) -> bool;
+wait_for_condition_proc :: #type () -> bool;
 
 wait_for_condition :: ($condition: Code, sleep_interval_ms := 0.1) #expand {
     while !(#insert condition) {
@@ -218,6 +222,7 @@ Curry :: struct {
     render_in_game_thread_proc: UserProc;
     render_in_render_thread_proc: UserProc;
     end_frame_proc: UserProc;
+    before_quit_render_thread_proc: UserProc;
 }
 
 create_curry :: (window_name : string = DEFAULT_WINDOW_NAME) -> Curry {

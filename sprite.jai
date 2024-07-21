@@ -8,7 +8,7 @@ SpriteSaveData :: struct {
 
 SpriteHeader :: struct {
     frame_rate: u16 = 12;
-    frame_count: s32 = 1;
+    frame_count: u16 = 1;
     scale := 1.0;
     loop :=  true;
 }
@@ -16,6 +16,7 @@ SpriteHeader :: struct {
 Sprite :: struct {
     using header: SpriteHeader;
     texture: Texture;
+    tint := COLOR4B_WHITE;
     frame_index: s32;
     frame_timer: float32;
     frame_paused: bool;
@@ -112,7 +113,15 @@ sprite_load :: (file_path: string) -> Sprite {
     );
 
     image := image_create(data, width, height, .SPRITE_ANIMATION, .STBI);
+    image.asset_path = String.copy_string(file_path);
     tex := texture_create(image, creation_info);
+    return sprite_create(*tex, header);
+}
+
+sprite_create :: inline (
+    file_path: string, header := SpriteHeader.{}, tex_create_info := TextureCreationInfo.{}
+) -> Sprite {
+    tex := texture_create(file_path, .{});
     return sprite_create(*tex, header);
 }
 
@@ -148,12 +157,13 @@ sprite_draw :: (using sprite: *Sprite, position: Vector3, view_projection: *Matr
 }
 
 sprite_frame_advance :: inline (using sprite: *Sprite, by_frames: s32 = 1) {
-    sprite_frame_set(sprite, frame_index + by_frames);
+    sprite_frame_set(sprite, frame_index + by_frames, false);
 }
 
-sprite_frame_set :: inline (using sprite: *Sprite, to_frame: s32) {
+sprite_frame_set :: inline (using sprite: *Sprite, to_frame: s32, reset_timer := true) {
     frame_index = to_frame;
     frame_index = frame_index % frame_count;
+    if reset_timer then frame_timer = 0.0;
 }
 
 sprite_animate :: (using sprite: *Sprite, delta_time: float) {
@@ -187,6 +197,7 @@ END
 
 sprite_tri_frag := #string END
     #version 330
+    // #extension GL_EXT_gpu_shader4 : enable
 
     layout(location=0) out vec4 color;
 
@@ -195,8 +206,14 @@ sprite_tri_frag := #string END
     uniform sampler2D u_texture;
     uniform float u_animYScalar;
     uniform float u_animYOffset;
+    uniform int u_tint;
 
     void main() {
-        color = texture(u_texture, vec2(f_uv.x, f_uv.y * u_animYScalar + u_animYOffset));
+        float y = f_uv.y * u_animYScalar + u_animYOffset;
+        float r = float((u_tint & 0x000000ff)      ) / 255.0;
+        float g = float((u_tint & 0x0000ff00) >>  8) / 255.0;
+        float b = float((u_tint & 0x00ff0000) >> 16) / 255.0;
+        vec4 tint = vec4(r, g, b, 1.0);
+        color = texture(u_texture, vec2(f_uv.x, y)) * tint;
     }
 END

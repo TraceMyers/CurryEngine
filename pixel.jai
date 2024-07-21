@@ -116,25 +116,44 @@ END);
 
 #insert #run generate_pixel_type_conversions();
 
+ColorBase :: struct {}
+
+Color3b :: struct {
+    using #as base: ColorBase;
+    r : u8 = 0;
+    g : u8 = 0;
+    b : u8 = 0;
+}
+
 Color4b :: struct {
+    using #as base: ColorBase;
     r : u8 = 0;
     g : u8 = 0;
     b : u8 = 0;
     a : u8 = 255;
+
+#place r;
+    rgb: Color3b = ---;
+}
+
+Color3f :: struct {
+    using #as base: ColorBase;
+    r := 0.0;
+    g := 0.0;
+    b := 0.0;
 }
 
 Color4f :: struct {
+    using #as base: ColorBase;
     r := 0.0;
     g := 0.0;
     b := 0.0;
     a := 1.0;
+
+#place r;
+    rgb: Color3f = ---;
 }
 
-Color3f :: struct {
-    r := 0.0;
-    g := 0.0;
-    b := 0.0;
-}
 
 pixel2color4b :: inline (p: $PxType/interface PixelBase) -> Color4b {
     return cast,force(Color4b) convert_pixel(p, RGBA8);
@@ -147,6 +166,30 @@ pixel2color4f :: inline (p: $PxType/interface PixelBase) -> Color4f {
 pixel2color3f :: inline (p: $PxType/interface PixelBase) -> Color3f {
     return cast,force(Color3f) convert_pixel(p, RGB32f);
 }
+
+make_color4b :: inline (c: Color3f) -> Color4b {
+    return Color4b.{xx (c.r * 255.0), xx (c.g * 255.0), xx (c.b * 255.0), 255};
+}
+
+COLOR3F_RED         :: Color3f.{r=1.0};
+COLOR3F_GREEN       :: Color3f.{               g=1.0};
+COLOR3F_BLUE        :: Color3f.{                              b=1.0};
+COLOR3F_BLACK       :: Color3f.{};
+COLOR3F_GREY        :: Color3f.{r=128.0/255.0, g=128.0/255.0, b=128.0/255.0};
+COLOR3F_GRAY        :: Color3f.{r=128.0/255.0, g=128.0/255.0, b=128.0/255.0};
+COLOR3F_LIGHT_GREY  :: Color3f.{r=210.0/255.0, g=210.0/255.0, b=210.0/255.0};
+COLOR3F_LIGHT_GRAY  :: COLOR3F_LIGHT_GREY;
+COLOR3F_WHITE       :: Color3f.{r=1.0,         g=1.0,         b=1.0};
+COLOR3F_PINK        :: Color3f.{r=1.0,         g= 20.0/255.0, b=147.0/255.0};
+COLOR3F_ORANGE      :: Color3f.{r=1.0,         g=128.0/255.0};
+COLOR3F_YELLOW      :: Color3f.{r=1.0,         g=1.0};
+COLOR3F_VIOLET      :: Color3f.{r=148.0/255.0,                b=211.0/255.0}; 
+COLOR3F_TEAL        :: Color3f.{               g=128.0/255.0, b=128.0/255.0};
+COLOR3F_SKY         :: Color3f.{r=135.0/255.0, g=206.0/255.0, b=235.0/255.0};
+COLOR3F_SEA         :: Color3f.{r= 46.0/255.0, g=139.0/255.0, b= 87.0/255.0};
+COLOR3F_SIENNA      :: Color3f.{r=160.0/255.0, g= 82.0/255.0, b= 45.0/255.0};
+COLOR3F_SALMON      :: Color3f.{r=250.0/255.0, g=128.0/255.0, b=114.0/255.0};
+COLOR3F_WOOD        :: Color3f.{r=222.0/255.0, g=184.0/255.0, b=135.0/255.0};
 
 COLOR4F_RED         :: Color4f.{r=1.0};
 COLOR4F_GREEN       :: Color4f.{               g=1.0};
@@ -167,6 +210,27 @@ COLOR4F_SEA         :: Color4f.{r= 46.0/255.0, g=139.0/255.0, b= 87.0/255.0};
 COLOR4F_SIENNA      :: Color4f.{r=160.0/255.0, g= 82.0/255.0, b= 45.0/255.0};
 COLOR4F_SALMON      :: Color4f.{r=250.0/255.0, g=128.0/255.0, b=114.0/255.0};
 COLOR4F_WOOD        :: Color4f.{r=222.0/255.0, g=184.0/255.0, b=135.0/255.0};
+COLOR4F_TRANSPARENT :: Color4f.{rgb=COLOR3F_BLACK, a=0.0};
+
+COLOR3B_RED         :: Color3b.{r=255};
+COLOR3B_GREEN       :: Color3b.{        g=255};
+COLOR3B_BLUE        :: Color3b.{                b=255};
+COLOR3B_BLACK       :: Color3b.{};
+COLOR3B_GREY        :: Color3b.{r=128,  g=128,  b=128};
+COLOR3B_GRAY        :: Color3b.{r=128,  g=128,  b=128};
+COLOR3B_LIGHT_GREY  :: Color3b.{r=210,  g=210,  b=210};
+COLOR3B_LIGHT_GRAY  :: COLOR3B_LIGHT_GREY;
+COLOR3B_WHITE       :: Color3b.{r=255,  g=255,  b=255};
+COLOR3B_PINK        :: Color3b.{r=255,  g= 20,  b=147};
+COLOR3B_ORANGE      :: Color3b.{r=255,  g=128};
+COLOR3B_YELLOW      :: Color3b.{r=255,  g=255};
+COLOR3B_VIOLET      :: Color3b.{r=148,          b=211}; 
+COLOR3B_TEAL        :: Color3b.{        g=128,  b=128};
+COLOR3B_SKY         :: Color3b.{r=135,  g=206,  b=235};
+COLOR3B_SEA         :: Color3b.{r= 46,  g=139,  b= 87};
+COLOR3B_SIENNA      :: Color3b.{r=160,  g= 82,  b= 45};
+COLOR3B_SALMON      :: Color3b.{r=250,  g=128,  b=114};
+COLOR3B_WOOD        :: Color3b.{r=222,  g=184,  b=135};
 
 COLOR4B_RED         :: Color4b.{r=255};
 COLOR4B_GREEN       :: Color4b.{        g=255};
@@ -187,6 +251,7 @@ COLOR4B_SEA         :: Color4b.{r= 46,  g=139,  b= 87};
 COLOR4B_SIENNA      :: Color4b.{r=160,  g= 82,  b= 45};
 COLOR4B_SALMON      :: Color4b.{r=250,  g=128,  b=114};
 COLOR4B_WOOD        :: Color4b.{r=222,  g=184,  b=135};
+COLOR4B_TRANSPARENT :: Color4b.{rgb=COLOR3B_BLACK, a=0};
 
 PixelFieldLocation :: enum u8 {
     NONE :: 0x0;

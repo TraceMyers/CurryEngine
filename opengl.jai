@@ -8,9 +8,10 @@ GRAPHICS_API :: GraphicsAPI.OPENGL;
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // must be called from the thread where opengl api calls will be made from; OpenGL context is thread-local
-create_graphics_context :: (using curry: *Curry) {
-    curry.gl_context = SDL_GL_CreateContext(curry.window);
-    if !curry.gl_context {
+create_graphics_context :: () {
+    using context.curry;
+    gl_context = SDL_GL_CreateContext(window);
+    if !gl_context {
         log("could not create OpenGL context: %", to_string(SDL_GetError()));
         exit(1);
     }
@@ -34,8 +35,8 @@ create_graphics_context :: (using curry: *Curry) {
     gl_assert(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE));
 
     // TODO: this ain't the project directory
-    curry.project_directory = copy_string(get_working_directory());
-    curry.asset_directory = copy_string(tprint("%\\assets", curry.project_directory));
+    project_directory = copy_string(get_working_directory());
+    asset_directory = copy_string(tprint("%\\assets", project_directory));
 
     stbi_set_flip_vertically_on_load(1);
 
@@ -44,13 +45,14 @@ create_graphics_context :: (using curry: *Curry) {
     log("graphics renderer: %", to_string(glGetString(GL_RENDERER)));
 }
 
-delete_curry :: (curry: *Curry) {
-    save_struct_to_text_file(WINDOW_SETTINGS_FILE_PATH, *curry.window_settings);    
-    free(curry.project_directory); 
-    free(curry.asset_directory);
-    free(curry.window_name);
-    SDL_GL_DeleteContext(curry.gl_context);
-    SDL_DestroyWindow(curry.window);
+delete_curry :: () {
+    using context.curry;
+    save_struct_to_text_file(WINDOW_SETTINGS_FILE_PATH, *window_settings);    
+    free(project_directory); 
+    free(asset_directory);
+    free(window_name);
+    SDL_GL_DeleteContext(gl_context);
+    SDL_DestroyWindow(window);
     SDL_Quit();
 }
 
@@ -63,21 +65,22 @@ clear_canvas :: (clear_color: *Color3f) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-cache_window_data :: (using curry: *Curry) {
+cache_window_data :: () {
+    using context.curry;
     SDL_GetWindowSize(window, *window_settings.width, *window_settings.height);
     SDL_GetWindowPosition(window, *window_settings.position_x, *window_settings.position_y);
 }
 
-advance_graphics_frame :: (curry: *Curry) {
-    SDL_GL_SwapWindow(curry.window);
+advance_graphics_frame :: () {
+    SDL_GL_SwapWindow(context.curry.window);
 }
 
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // --------------------------------------------------------------------------------------------------------------- imgui
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-imgui_opengl_render :: (curry: *Curry) {
-    using curry.gui_data;
+imgui_opengl_render :: () {
+    using context.curry.gui_data;
 
     io := ImGui.GetIO();
 
@@ -183,10 +186,14 @@ draw :: (sprite: *Sprite, mvp: *Matrix4) {
         shader_set_uniform(*sprite_draw_data.shader, "u_animYScalar", 1.0);
         shader_set_uniform(*sprite_draw_data.shader, "u_animYOffset", 0.0);
     } else {
-        scalar := 1.0 / xx sprite.frame_count;
+        // subtracting a small epsilon appears to prevent frame wrapping (frame beginning on wrong row) issues
+        scalar := 1.0 / xx sprite.frame_count - 0.0000001;
+        // frames are stored top to bottom
+        offset := sprite.frame_count - (sprite.frame_index + 1);
         shader_set_uniform(*sprite_draw_data.shader, "u_animYScalar", scalar);
-        shader_set_uniform(*sprite_draw_data.shader, "u_animYOffset", xx sprite.frame_index * scalar);
+        shader_set_uniform(*sprite_draw_data.shader, "u_animYOffset", xx offset * scalar);
     } 
+    shader_set_uniform(*sprite_draw_data.shader, "u_tint", sprite.tint);
     vertex_array_bind(*sprite_draw_data.va);
     index_buffer_bind(*sprite_draw_data.ib);
     texture_bind(*sprite.texture);
@@ -225,6 +232,38 @@ set_viewport_for_draw :: inline (using rect: ViewportRect) {
 // cache the binding, do your thing, and rebind cached tex
 cached_texture_render_id: s32;
 
+tex_filter_style_strings := string.["Nearest", "Linear"];
+
+
+filter_string_to_settings :: (name: string) -> s32 #expand {
+    if String.compare(name, "Nearest") == 0 {
+        return GL_NEAREST;
+    } else if String.compare(name, "Linear") == 0 {
+        return GL_LINEAR;
+    }
+    return 0;
+}
+
+filter_setting_to_index :: (setting: s32) -> s64 #expand {
+    if setting == {
+    case GL_NEAREST;
+        return 0;
+    case GL_LINEAR;
+        return 1;
+    }
+    return -1;
+}
+
+filter_index_to_setting :: (index: s64) -> s32 #expand {
+    if index == {
+    case 0;
+        return GL_NEAREST;
+    case 1;
+        return GL_LINEAR;
+    }
+    return -1;
+}
+
 // TODO: this shouldn't be opengl-specific
 // https://registry.khronos.org/OpenGL-Refpages/gl4/html/glTexParameter.xhtml
 TextureCreationInfo :: struct {
@@ -239,7 +278,7 @@ TextureCreationInfo :: struct {
 
 texture_create :: (file_path: string, creation_info := TextureCreationInfo.{}) -> Texture {
     tex: Texture = ---;
-    tex.image = image_load(file_path, creation_info.image_format);
+    tex.image = image_create(file_path, creation_info.image_format);
     texture_create_on_gpu(*tex, *creation_info);
     return tex;
 }
@@ -253,7 +292,6 @@ texture_create :: (image: Image, creation_info := TextureCreationInfo.{}) -> Tex
 
 texture_delete :: (tex: *Texture) {
     if tex.render_id != 0 then gl_assert(glDeleteTextures(1, *tex.render_id));
-    // TODO: ehhh imgui texture???
     image_delete(*tex.image);
     tex.render_id = 0;
     tex.slot = 0;
@@ -287,6 +325,7 @@ texture_create_on_gpu :: (tex: *Texture, creation_info: *TextureCreationInfo) {
     gl_assert(glTexImage2D(
         GL_TEXTURE_2D, 0, xx gl_format, xx tex.width, xx tex.height, 0, gl_format, gl_channel, tex.raw_data.data
     ));
+    if creation_info.delete_local then image_delete_data(*tex.image);
 }
 
 texture_bind :: (tex: *Texture, slot: s32 = 0) {
@@ -573,6 +612,10 @@ set_uniform_internal :: (location: s32, uniform: Vector3) {
     gl_assert(glUniform3f(location, uniform.x, uniform.y, uniform.z));
 }
 
+set_uniform_internal :: (location: s32, uniform: Color4b) {
+    gl_assert(glUniform1i(location, <<cast(*s32)*uniform));
+}
+
 shader_delete :: (shader: *Shader) {
     gl_assert(glDeleteProgram(shader.render_id));
     array_free(shader.parameters);
@@ -699,35 +742,44 @@ gl_element_size :: (gl_type : u32) -> u32 {
 }
 
 type_info_to_gl_layout :: (info: *Type_Info) -> StructMemberLayoutInfo {
-    if info.type == .STRUCT {
+    if info.type == {
+    case .STRUCT;
         info_struct := cast(*Type_Info_Struct) info;
         // NOTE: this tries to avoid issues by checking member flags, but it may run into issues if
         // a struct's members aren't laid out s.t. the actual backing data is at the top and the #place's come
         // after, since we're iterating forward over the struct.
         size_count : s64;
         member_count : s16;
+
+        first_valid_index : s64 = -1;
         for i : 0..info_struct.members.count-1 {
             member := *info_struct.members[i];
             // if member.flags != 0 then continue;
             next_size := size_count + member.type.runtime_size;
             if next_size > info_struct.runtime_size then break;
+            if member.type.type == .STRUCT {
+                assert(member.type.runtime_size == 0);
+                continue;
+            }
             // all members must be one of these primitives
             assert(member.type.type == .INTEGER || member.type.type == .FLOAT);
-            if i > 0 {
+            if first_valid_index != -1 {
                 // all members must be uniform
                 assert(
-                    info_struct.members[0].type.type == member.type.type 
-                    && info_struct.members[0].type.runtime_size == member.type.runtime_size
+                    info_struct.members[first_valid_index].type.type == member.type.type 
+                    && info_struct.members[first_valid_index].type.runtime_size == member.type.runtime_size
                 );
+            }
+            else {
+                first_valid_index = i;
             }
             size_count = next_size;
             member_count += 1;
         }
 
-        base_info := type_info_to_gl_layout(info_struct.members[0].type);
+        base_info := type_info_to_gl_layout(info_struct.members[first_valid_index].type);
         base_info.count = member_count;
         return base_info;
-    } else if info.type == {
     case .INTEGER;
         info_int := cast(*Type_Info_Integer) info;
         if info_int.runtime_size == {

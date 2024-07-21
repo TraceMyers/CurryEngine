@@ -61,15 +61,15 @@ pop_viewport :: () {
     viewport_hierarchy.count -=1;
 }
 
-reset_viewports :: (curry: *Curry, push_window_viewport := true) {
+reset_viewports :: (push_window_viewport := true) {
     viewport_hierarchy.count = 0;
     for *v: viewport_hierarchy_buffer {
         <<v = .{};
     }
     array_reset(*viewport_rects);
 
-    cached_window_width_for_viewports = curry.window_settings.width;
-    cached_window_height_for_viewports = curry.window_settings.height;
+    cached_window_width_for_viewports = context.curry.window_settings.width;
+    cached_window_height_for_viewports = context.curry.window_settings.height;
 
     if push_window_viewport {
         push_viewport();
@@ -115,25 +115,58 @@ last_cached_viewport_rect :: inline () -> ViewportRect {
     return viewport_rects[last_cached_viewport()];
 }
 
-highlight_last_cached_viewport :: () {
+highlight_last_cached_viewport :: (
+    outline_thickness := 4.0, 
+    outline_color := Color4b.{rgb=COLOR3B_WHITE, a=100}, 
+    fill_color := Color4b.{rgb=COLOR3B_YELLOW, a=25}
+) {
     viewport_rect := last_cached_viewport_rect();
-    fill_color := COLOR4B_YELLOW;
-    fill_color.a = 25;
-    outline_color := COLOR4B_WHITE;
-    outline_color.a = 100;
-    draw_screenspace_box(
-        .{0.0, 0.0},
-        .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
-        fill_color,
-        0.0,
-        ._63,
-        true
-    );
-    draw_screenspace_box(
-        .{0.0, 0.0},
-        .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
-        outline_color,
-        8.0,
-        ._63
-    );
+    if fill_color.a > 0 {
+        draw_screenspace_box(
+            .{0.0, 0.0},
+            .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
+            fill_color,
+            0.0,
+            ._63,
+            true
+        );
+    }
+    if outline_color.a > 0 {
+        draw_screenspace_box(
+            .{0.0, 0.0},
+            .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
+            outline_color,
+            outline_thickness,
+            ._63
+        );
+    }
 }
+
+draw_line_across_viewport_bottom :: () {
+    rect := last_cached_viewport_rect();
+    color := COLOR4B_WHITE;
+    color.a = 128;
+    draw_screenspace_line(.{0.0, 0.0}, .{xx rect.dimensions.x, 0.0}, color, 2.0);
+}
+
+draw_line_across_viewport_top :: () {
+    rect := last_cached_viewport_rect();
+    color := COLOR4B_WHITE;
+    color.a = 128;
+    draw_screenspace_line(.{0.0, xx rect.dimensions.y}, .{xx rect.dimensions.x, xx rect.dimensions.y}, color, 2.0);
+}
+
+draw_line_across_viewport_left :: () {
+    rect := last_cached_viewport_rect();
+    color := COLOR4B_WHITE;
+    color.a = 128;
+    draw_screenspace_line(.{0.0, 0.0}, .{0.0, xx rect.dimensions.y}, color, 2.0);
+}
+
+draw_line_across_viewport_right :: () {
+    rect := last_cached_viewport_rect();
+    color := COLOR4B_WHITE;
+    color.a = 128;
+    draw_screenspace_line(.{xx rect.dimensions.x, 0.0}, .{xx rect.dimensions.x, xx rect.dimensions.y}, color, 2.0);
+}
+

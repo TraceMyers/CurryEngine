@@ -4,54 +4,57 @@
     INCLUDE_IMGUI := false
 );
 
-instance_count: s32;
+#add_context curry : *Curry = null;
 
-run_game :: (curry: *Curry) {
-    init_run(curry);
-    defer deinit_run(curry);
-    game_loop(curry);
+run_game :: (in_curry: *Curry) {
+    context.curry = in_curry;
+    init_run();
+    defer deinit_run();
+    game_loop();
 }
 
-game_loop :: (using curry: *Curry) {
-    if render_in_separate_thread then wait_for_fence(.{*curry.render_thread_initialized, false});
+game_loop :: () {
+    using context.curry;
+    if render_in_separate_thread then wait_for_fence(.{*render_thread_initialized, false});
     delta_time = delta_time_init;
-    run_user_proc(init_game_thread_proc, curry);
+    run_user_proc(init_game_thread_proc);
 
     while !quit {
-        cache_window_data(curry);
+        cache_window_data();
 
         // --- input ---
-        run_user_proc(pre_input_proc, curry);
-        update_input(curry);
+        run_user_proc(pre_input_proc);
+        update_input();
 
         // --- pre render ---
-        run_user_proc(pre_render_proc, curry);
+        run_user_proc(pre_render_proc);
 
         // --- render ---
         if render_in_separate_thread {
             wait_for_fence(.{fence=*render_thread.work_done});
             render_synced_delta_time = delta_time;
-            imgui_new_frame(curry);
-            run_user_proc(init_render_proc, curry);
+            imgui_new_frame();
+            run_user_proc(init_render_proc);
             signal_fence(*render_thread.work_start);
         } else {
-            imgui_new_frame(curry);
-            run_user_proc(init_render_proc, curry);
-            do_rendering(curry);
+            imgui_new_frame();
+            run_user_proc(init_render_proc);
+            do_rendering();
         }
 
         // --- end frame ---
-        run_user_proc(end_frame_proc, curry);
-        end_of_frame_update(curry);
+        run_user_proc(end_frame_proc);
+        end_of_frame_update();
     }
 }
 
-end_of_frame_update :: (using curry: *Curry) {
+end_of_frame_update :: () {
+    using context.curry;
     reset_temporary_storage();
 
-    ONE_HUNDREDTH_MS :: 0.00001;
+    ONE_HUNDREDTH_MS :: 0.01;
     min_time_to_sync : float64 = ifx high_accuracy_frame_time_targeting 
-        then  ONE_HUNDREDTH_MS
+        then  (ONE_HUNDREDTH_MS / 1000.0)
         else (HACKY_HIGH_RES_TIMER_RESOLUTION_MS + 0.1) / 1000.0;
     sync_time := frame_time_target - time_since(frame_start_time);
     if sync_time >= min_time_to_sync {
@@ -65,78 +68,82 @@ end_of_frame_update :: (using curry: *Curry) {
 
 render_loop :: (thread: *Thread) -> s64 {
     rt := cast(*CurryThread) thread;
-    using rt.curry_instance;
 
     #if OS == .WINDOWS then SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
 
+    context.curry = rt.curry_instance;
+    using context.curry;
     render_thread_id = xx context.thread_index;
-    create_graphics_context(rt.curry_instance);
+    create_graphics_context();
 
     init_primitive_draws();
     init_viewports();
     sprites_init();
-    imgui_init(rt.curry_instance);
+    imgui_init();
     defer deinit_primitive_draws();
     defer sprites_deinit();
-    defer imgui_deinit(rt.curry_instance);
+    defer imgui_deinit();
 
-    run_user_proc(init_render_thread_proc, rt.curry_instance);
-
+    run_user_proc(init_render_thread_proc);
     signal_fence(*render_thread_initialized);
 
     while !render_thread.should_quit {
         wait_for_any_fence(.{xx *rt.should_quit, false}, .{fence=*rt.work_start});
-        do_rendering(rt.curry_instance);
+        do_rendering();
         reset_temporary_storage();
         signal_fence(*render_thread.work_done);
     }
+
+    run_user_proc(before_quit_render_thread_proc);
+
     return 0;
 }
 
-do_rendering :: (using curry: *Curry) {
-    reset_viewports(curry);
+do_rendering :: () {
+    using context.curry;
+    reset_viewports();
     clear_canvas(*window_settings.clear_color);
 
     if xx context.thread_index == game_thread_id {
-        run_user_proc(render_in_game_thread_proc, curry);
+        run_user_proc(render_in_game_thread_proc);
     } else if xx context.thread_index == render_thread_id {
-        run_user_proc(render_in_render_thread_proc, curry);
+        run_user_proc(render_in_render_thread_proc);
     } else assert(false);
 
     dispatch_primitive_screenspace_draws();
-    imgui_render(curry);
-    advance_graphics_frame(curry);
+    imgui_render();
+    advance_graphics_frame();
 }
 
-init_run :: (using curry: *Curry) {
-    instance_count += 1;
+init_run :: () {
+    using context.curry;
     timer_init();
     frame_start_time = get_current_time();
     game_thread_id = xx context.thread_index;
     if render_in_separate_thread {
-        render_thread = create_thread(curry);
+        render_thread = create_thread();
         thread_init(xx render_thread, render_loop);
         thread_start(xx render_thread);
     } else {
-        create_graphics_context(curry);
+        create_graphics_context();
         init_primitive_draws();
         init_viewports();
         sprites_init();
-        imgui_init(curry);
+        imgui_init();
         render_thread_id = -1;
     }
 }
 
-deinit_run :: (using curry: *Curry) {
-    instance_count -= 1;
+deinit_run :: () {
+    using context.curry;
     if render_thread then delete_thread(render_thread);
     if !render_in_separate_thread {
         deinit_primitive_draws();
         sprites_deinit();
-        imgui_deinit(curry);
+        imgui_deinit();
     }
-    if curry.auto_end then delete_curry(curry);
-    <<curry = .{};
+    if auto_end then delete_curry();
+    <<context.curry = .{};
 }
 
 #import "Basic";

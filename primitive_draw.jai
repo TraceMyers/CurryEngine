@@ -59,7 +59,7 @@ draw_screenspace_line :: (
     color: Color4b, 
     width: float32, 
     layer: ScreenspaceLayer = ._0,
-    viewport_rect: s32 = -1
+    viewport: s32 = -1
 ) -> bool {
     lock(*primitive_draw_mutex);
     defer unlock(*primitive_draw_mutex);
@@ -67,8 +67,8 @@ draw_screenspace_line :: (
     new_vertex_count := primitive_vertex_count + 4;
     new_index_count := primitive_index_count + 6;
     if new_vertex_count > MAX_PRIMITIVE_DRAW_VERTICES || new_index_count > MAX_PRIMITIVE_DRAW_INDICES then return false;
-    if viewport_rect == -1 then viewport_rect = cast(s32) viewport_rects.count - 1;
-    array_add(*queued_screenspace_lines[viewport_rect], .{start, end, color, width, layer});
+    if viewport == -1 then viewport = cast(s32) viewport_rects.count - 1;
+    array_add(*queued_screenspace_lines[viewport], .{start, end, color, width, layer});
     primitive_vertex_count = new_vertex_count;
     primitive_index_count = new_index_count;
     return true;
@@ -82,7 +82,7 @@ draw_screenspace_box :: (
     line_width: float32, 
     layer: ScreenspaceLayer = ._0, 
     do_fill := false,
-    viewport_rect: s32 = -1
+    viewport: s32 = -1
 ) -> bool {
     success := true;
     if do_fill {
@@ -91,7 +91,7 @@ draw_screenspace_box :: (
         max_pos := Vector2.{max(start.x, end.x), max(start.y, end.y)} + Vector2.{half_line_width, half_line_width};
         bot := Vector2.{(min_pos.x + max_pos.x) * 0.5, min_pos.y};
         top := Vector2.{(min_pos.x + max_pos.x) * 0.5, max_pos.y};
-        success = draw_screenspace_line(bot, top, color, max_pos.x - min_pos.x, layer, viewport_rect);
+        success = draw_screenspace_line(bot, top, color, max_pos.x - min_pos.x, layer, viewport);
     } else {
         assert(line_width > 0.0);
         half_lw := line_width * 0.5;
@@ -101,16 +101,16 @@ draw_screenspace_box :: (
         box_lr := Vector2.{max(start.x, end.x), min(start.y, end.y)};
         // making it so the line corners don't overlap
         success = draw_screenspace_line(
-            box_ll + Vector2.{0.0, -half_lw}, box_ul + Vector2.{0.0, half_lw}, color, line_width, layer, viewport_rect
+            box_ll + Vector2.{0.0, -half_lw}, box_ul + Vector2.{0.0, half_lw}, color, line_width, layer, viewport
         );
         success = draw_screenspace_line(
-            box_ul + Vector2.{half_lw, 0.0}, box_ur + Vector2.{-half_lw, 0.0}, color, line_width, layer, viewport_rect
+            box_ul + Vector2.{half_lw, 0.0}, box_ur + Vector2.{-half_lw, 0.0}, color, line_width, layer, viewport
         );
         success = draw_screenspace_line(
-            box_ur + Vector2.{0.0, half_lw}, box_lr + Vector2.{0.0, -half_lw}, color, line_width, layer, viewport_rect
+            box_ur + Vector2.{0.0, half_lw}, box_lr + Vector2.{0.0, -half_lw}, color, line_width, layer, viewport
         );
         success = draw_screenspace_line(
-            box_lr + Vector2.{-half_lw, 0.0}, box_ll + Vector2.{half_lw, 0.0} , color, line_width, layer, viewport_rect
+            box_lr + Vector2.{-half_lw, 0.0}, box_ll + Vector2.{half_lw, 0.0} , color, line_width, layer, viewport
         );
     }
     return success;

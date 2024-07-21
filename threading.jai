@@ -61,10 +61,9 @@ signal_fence :: inline (fence: *u8) {
     atomic_write(fence, 1);
 }
 
-create_thread :: (curry: *Curry) -> *CurryThread {
-    assert(curry != null);
+create_thread :: () -> *CurryThread {
     thread := New(CurryThread);
-    thread.curry_instance = curry;
+    thread.curry_instance = context.curry;
     return thread;
 }
 
