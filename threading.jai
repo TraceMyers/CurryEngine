@@ -17,10 +17,10 @@ Fence :: struct {
 }
 
 wait_for_fence :: (fence: Fence) {
-    while atomic_read(fence.fence) == 0 {
+    while <<(fence.fence) == 0 {
         do_sleep(0.1);
     }
-    if fence.do_reset then atomic_write(fence.fence, 0);
+    if fence.do_reset then <<(fence.fence) = 0;
 }
 
 // the only usage of this that potentially resets multiple fences and is thread safe would use mutexes
@@ -28,10 +28,8 @@ wait_for_fence :: (fence: Fence) {
 wait_for_any_fence :: (fences: ..Fence) {
     while true {
         for fences {
-            if atomic_read(it.fence) != 0 {
-                if it.do_reset {
-                    atomic_write(it.fence, 0);
-                }
+            if <<(it.fence) != 0 {
+                if it.do_reset then <<(it.fence) = 0;
                 return;
             }
         }
@@ -43,13 +41,11 @@ wait_for_all_fences :: (fences: ..Fence) {
     while true {
         passed_count := 0;
         for fences {
-            passed_count += atomic_read(it.fence) != 0;
+            passed_count += <<(it.fence) != 0;
         }
         if passed_count == fences.count {
             for fences {
-                if it.do_reset {
-                    atomic_write(it.fence, 0);
-                }
+                if it.do_reset then <<(it.fence) = 0;
             }
             return;
         }
@@ -58,7 +54,7 @@ wait_for_all_fences :: (fences: ..Fence) {
 }
 
 signal_fence :: inline (fence: *u8) {
-    atomic_write(fence, 1);
+    <<fence = 1;
 }
 
 create_thread :: () -> *CurryThread {

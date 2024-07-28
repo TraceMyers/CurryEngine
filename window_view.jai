@@ -35,18 +35,16 @@ ViewportRect :: struct {
 
 MAX_VIEWPORT_DEPTH :: 128;
 MAX_VIEWPORT_RECT_COUNT :: 512;
-viewport_hierarchy: []Viewport;
-viewport_hierarchy_buffer: [MAX_VIEWPORT_DEPTH]Viewport;
-viewport_rects: [..]ViewportRect;
-cached_window_width_for_viewports: s32;
-cached_window_height_for_viewports: s32;
+
 
 init_viewports :: () {
+    using context.curry;
     viewport_hierarchy.data = *viewport_hierarchy_buffer[0];
     viewport_rects.allocator = temp;
 }
 
 push_viewport :: (v := Viewport.{}, do_cache := false) -> s32 {
+    using context.curry;
     index := viewport_hierarchy.count;
     assert(viewport_hierarchy.count < MAX_VIEWPORT_DEPTH);
     viewport_hierarchy.count += 1;
@@ -56,12 +54,14 @@ push_viewport :: (v := Viewport.{}, do_cache := false) -> s32 {
 }
 
 pop_viewport :: () {
+    using context.curry;
     pop_index := viewport_hierarchy.count - 1;
     assert(!viewport_hierarchy[pop_index].locked);
     viewport_hierarchy.count -=1;
 }
 
 reset_viewports :: (push_window_viewport := true) {
+    using context.curry;
     viewport_hierarchy.count = 0;
     for *v: viewport_hierarchy_buffer {
         <<v = .{};
@@ -78,6 +78,7 @@ reset_viewports :: (push_window_viewport := true) {
 }
 
 cache_viewport_rect :: () -> s32 {
+    using context.curry;
     assert(viewport_rects.count < MAX_VIEWPORT_RECT_COUNT);
     remain_width := cached_window_width_for_viewports;
     remain_height := cached_window_height_for_viewports;
@@ -107,11 +108,13 @@ cache_viewport_rect :: () -> s32 {
 }
 
 last_cached_viewport :: inline () -> s64 {
+    using context.curry;
     assert(viewport_rects.count > 0);
     return viewport_rects.count - 1;
 }
 
 last_cached_viewport_rect :: inline () -> ViewportRect {
+    using context.curry;
     return viewport_rects[last_cached_viewport()];
 }
 
@@ -120,6 +123,7 @@ highlight_last_cached_viewport :: (
     outline_color := Color4b.{rgb=COLOR3B_WHITE, a=100}, 
     fill_color := Color4b.{rgb=COLOR3B_YELLOW, a=25}
 ) {
+    using context.curry;
     viewport_rect := last_cached_viewport_rect();
     if fill_color.a > 0 {
         draw_screenspace_box(
@@ -143,6 +147,7 @@ highlight_last_cached_viewport :: (
 }
 
 draw_line_across_viewport_bottom :: () {
+    using context.curry;
     rect := last_cached_viewport_rect();
     color := COLOR4B_WHITE;
     color.a = 128;
@@ -150,6 +155,7 @@ draw_line_across_viewport_bottom :: () {
 }
 
 draw_line_across_viewport_top :: () {
+    using context.curry;
     rect := last_cached_viewport_rect();
     color := COLOR4B_WHITE;
     color.a = 128;
@@ -157,6 +163,7 @@ draw_line_across_viewport_top :: () {
 }
 
 draw_line_across_viewport_left :: () {
+    using context.curry;
     rect := last_cached_viewport_rect();
     color := COLOR4B_WHITE;
     color.a = 128;
@@ -164,6 +171,7 @@ draw_line_across_viewport_left :: () {
 }
 
 draw_line_across_viewport_right :: () {
+    using context.curry;
     rect := last_cached_viewport_rect();
     color := COLOR4B_WHITE;
     color.a = 128;

@@ -1,30 +1,30 @@
-#if INCLUDE_IMGUI ImGui :: #import "ImGui";
+#if USING_IMGUI ImGui :: #import "ImGui";
 
 imgui_init :: () -> bool {
-    #if INCLUDE_IMGUI then return imgui_init_impl();
+    #if USING_IMGUI then return imgui_init_impl();
     else return false;
 }
 
 imgui_deinit :: () {
-    #if INCLUDE_IMGUI then imgui_deinit_impl();
+    #if USING_IMGUI then imgui_deinit_impl();
 }
 
 imgui_new_frame :: () {
-    #if INCLUDE_IMGUI {
+    #if USING_IMGUI {
         imgui_new_frame_impl();
         ImGui.NewFrame();
     }
 }
 
 imgui_render :: () {
-    #if INCLUDE_IMGUI {
+    #if USING_IMGUI {
         ImGui.Render();
         imgui_render_impl();
     }
 }
 
 imgui_set_cursor :: () {
-    #if INCLUDE_IMGUI {
+    #if USING_IMGUI {
         using context.curry.gui_data;
         if ImGui.GetMouseCursor() == {
             case .Arrow;         SDL_SetCursor(cursor_arrow);

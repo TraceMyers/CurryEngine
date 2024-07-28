@@ -44,7 +44,7 @@ ViewSettingsPerspective :: struct {
 }
 
 Camera :: struct {
-    using entity := Entity.{placement=.CENTER};
+    using entity := Entity.{};
     view_mode := CameraViewMode.ORTHOGRAPHIC;
     dimensionality := CameraDimensionality._2D;
     union {
@@ -70,7 +70,7 @@ camera_create :: (view_mode: CameraViewMode, dimensionality: CameraDimensionalit
         assert(view_mode == .ORTHOGRAPHIC);
         position := Vector3.{0.0, 0.0, CAMERA_SCREENSPACE_NEAR_PLANE * 0.99};
         return Camera.{
-            entity=.{position=position, placement=.CENTER},
+            entity=.{position=position},
             view_mode=.ORTHOGRAPHIC, 
             dimensionality=dimensionality, 
             orthographic_settings=settings
@@ -78,6 +78,20 @@ camera_create :: (view_mode: CameraViewMode, dimensionality: CameraDimensionalit
     } else {
         assert(view_mode == .PERSPECTIVE);
         return Camera.{view_mode=.PERSPECTIVE, dimensionality=dimensionality, perspective_settings=settings};
+    }
+}
+
+camera_create :: (view_mode: CameraViewMode, dimensionality: CameraDimensionality) -> Camera {
+    if view_mode == .ORTHOGRAPHIC {
+        position := Vector3.{0.0, 0.0, CAMERA_SCREENSPACE_NEAR_PLANE * 0.99};
+        return Camera.{
+            entity=.{position=position},
+            view_mode=.ORTHOGRAPHIC, 
+            dimensionality=dimensionality
+        };
+    } else {
+        assert(view_mode == .PERSPECTIVE);
+        return Camera.{view_mode=.PERSPECTIVE, dimensionality=dimensionality};
     }
 }
 

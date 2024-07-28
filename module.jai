@@ -1,14 +1,21 @@
 #module_parameters(
     USE_GRAPHICS_API := "opengl",
     GRAPHICS_API_DEBUG := false,
-    INCLUDE_IMGUI := false
+    INCLUDE_IMGUI := false,
+    USE_EDITOR := false,
+    USE_ENTITIES := true
 );
+
+USING_IMGUI :: INCLUDE_IMGUI || USE_EDITOR;
 
 #add_context curry : *Curry = null;
 
-run_game :: (in_curry: *Curry) {
+init_game :: (in_curry: *Curry) {
     context.curry = in_curry;
     init_run();
+}
+
+run_game :: () {
     defer deinit_run();
     game_loop();
 }
@@ -17,45 +24,48 @@ game_loop :: () {
     using context.curry;
     if render_in_separate_thread then wait_for_fence(.{*render_thread_initialized, false});
     delta_time = delta_time_init;
-    run_user_proc(init_game_thread_proc);
+    run_user_proc(init_game_proc);
 
     while !quit {
         cache_window_data();
 
         // --- input ---
-        run_user_proc(pre_input_proc);
         update_input();
-
-        // --- pre render ---
-        run_user_proc(pre_render_proc);
+        run_user_proc(post_input_proc);
 
         // --- render ---
         if render_in_separate_thread {
             wait_for_fence(.{fence=*render_thread.work_done});
-            render_synced_delta_time = delta_time;
-            imgui_new_frame();
-            run_user_proc(init_render_proc);
+            init_render_on_game_thread();
             signal_fence(*render_thread.work_start);
         } else {
-            imgui_new_frame();
-            run_user_proc(init_render_proc);
+            init_render_on_game_thread();
             do_rendering();
         }
 
         // --- end frame ---
-        run_user_proc(end_frame_proc);
         end_of_frame_update();
     }
 }
 
+init_render_on_game_thread :: () {
+    using context.curry;
+    render_synced_delta_time = delta_time;
+    imgui_new_frame();
+    #if USE_EDITOR editor_init_render();
+    run_user_proc(init_render_proc);
+}
+
 end_of_frame_update :: () {
     using context.curry;
+    run_user_proc(end_frame_proc);
     reset_temporary_storage();
 
-    ONE_HUNDREDTH_MS :: 0.01;
+    ONE_HUNDREDTH_MS_IN_SECONDS :: 0.01 / 1000.0;
+    LOW_RES_MS_IN_SECONDS :: (HACKY_HIGH_RES_TIMER_RESOLUTION_MS + 0.1) / 1000.0;
     min_time_to_sync : float64 = ifx high_accuracy_frame_time_targeting 
-        then  (ONE_HUNDREDTH_MS / 1000.0)
-        else (HACKY_HIGH_RES_TIMER_RESOLUTION_MS + 0.1) / 1000.0;
+        then ONE_HUNDREDTH_MS_IN_SECONDS 
+        else LOW_RES_MS_IN_SECONDS;
     sync_time := frame_time_target - time_since(frame_start_time);
     if sync_time >= min_time_to_sync {
         do_sleep(sync_time * cast(float64) 1000.0, high_accuracy_frame_time_targeting);
@@ -94,8 +104,8 @@ render_loop :: (thread: *Thread) -> s64 {
         signal_fence(*render_thread.work_done);
     }
 
-    run_user_proc(before_quit_render_thread_proc);
-
+    run_user_proc(render_thread_end_proc);
+    #if USE_EDITOR editor_cleanup();
     return 0;
 }
 
@@ -103,13 +113,8 @@ do_rendering :: () {
     using context.curry;
     reset_viewports();
     clear_canvas(*window_settings.clear_color);
-
-    if xx context.thread_index == game_thread_id {
-        run_user_proc(render_in_game_thread_proc);
-    } else if xx context.thread_index == render_thread_id {
-        run_user_proc(render_in_render_thread_proc);
-    } else assert(false);
-
+    #if USE_EDITOR editor_render();
+    run_user_proc(render_proc);
     dispatch_primitive_screenspace_draws();
     imgui_render();
     advance_graphics_frame();
@@ -120,6 +125,8 @@ init_run :: () {
     timer_init();
     frame_start_time = get_current_time();
     game_thread_id = xx context.thread_index;
+    dynamic_pool_init(*sprites);
+
     if render_in_separate_thread {
         render_thread = create_thread();
         thread_init(xx render_thread, render_loop);
@@ -132,18 +139,37 @@ init_run :: () {
         imgui_init();
         render_thread_id = -1;
     }
+
+    #if USE_ENTITIES {
+        entity_data = New(EntityDataPack);
+        static_pool_init(*entity_data.entities);
+    }
 }
 
 deinit_run :: () {
     using context.curry;
+
     if render_thread then delete_thread(render_thread);
+    run_user_proc(game_loop_end_proc);
+
     if !render_in_separate_thread {
         deinit_primitive_draws();
         sprites_deinit();
         imgui_deinit();
+        #if USE_EDITOR editor_cleanup();
     }
-    if auto_end then delete_curry();
-    <<context.curry = .{};
+
+    #if USE_ENTITIES {
+        array_free(entity_data.pending_entity_collisions);
+        free(entity_data);
+    }
+
+    dynamic_pool_deinit(*sprites);
+
+    if auto_end {
+        delete_curry();
+        <<context.curry = .{};
+    }
 }
 
 #import "Basic";
@@ -156,7 +182,14 @@ deinit_run :: () {
 #import "Atomics";
 #import "xxHash";
 #import "IntroSort";
+#import "Bindings_Generator";
+#import "System";
+#import "File_Utilities";
 String :: #import "String";
+
+#if USE_EDITOR {
+    #load "modules/CurryEditor/module.jai";
+}
 
 #load "imgui_impl.jai";
 #load "pixel.jai";
@@ -174,6 +207,9 @@ String :: #import "String";
 #load "sprite.jai";
 #load "data_structures.jai";
 #load "primitive_types.jai";
+#load "file.jai";
+#load "collision.jai";
+#load "asset_management.jai";
 #if #run String.compare(USE_GRAPHICS_API, "opengl") == 0 {
     #load "opengl.jai";
 } else {

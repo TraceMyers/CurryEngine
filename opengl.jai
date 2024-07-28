@@ -217,6 +217,7 @@ draw_instanced :: (va: *VertexArray, ib: *IndexBuffer, shader: *Shader, draw_mod
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 set_viewport_for_draw :: inline (v: s64) {
+    using context.curry;
     set_viewport_for_draw(viewport_rects[v]);
 }
 
@@ -579,8 +580,7 @@ shader_set_uniform :: (shader: *Shader, name: string, uniform: $T, transpose_mat
         }
     }
     if location == -1 {
-        c_name := to_c_string(name);
-        defer free(c_name);
+        c_name := temp_c_string(name);
         location = deref_Any(gl_assert(glGetUniformLocation(shader.render_id, c_name)), s32);
         assert(location != -1);
         array_add(*shader.parameters, .{type_to_shader_param_type(T), location, name_id});

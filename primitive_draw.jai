@@ -13,21 +13,14 @@ ScreenspaceLine :: struct {
 PrimitiveVertexType :: Vertex(3, .COLOR_4B);
 
 // TODO: buffer backing array like w/ window_view
-queued_screenspace_lines : [MAX_VIEWPORT_RECT_COUNT][..]ScreenspaceLine;
 
-primitive_shader : Shader;
-primitive_vertex_array : VertexArray;
-primitive_vertex_buffer : VertexBuffer;
-primitive_index_buffer : IndexBuffer;
-primitive_vertex_count : u64;
-primitive_index_count : u64;
-primitive_draw_mutex: Mutex;
 
 MAX_PRIMITIVE_DRAW_VERTICES :: 50000;
 MAX_PRIMITIVE_DRAW_INDICES :: MAX_PRIMITIVE_DRAW_VERTICES * 3;
 NO_VIEWPORT :: 0;
 
 init_primitive_draws :: () {
+    using context.curry;
     primitive_shader = shader_create_vf(primitive_tri_vert, primitive_tri_frag);
     assert(!shader_invalid(*primitive_shader));
     primitive_vertex_array = vertex_array_create();
@@ -41,6 +34,7 @@ init_primitive_draws :: () {
 }
 
 deinit_primitive_draws :: () {
+    using context.curry;
     vertex_array_delete(*primitive_vertex_array);
     vertex_buffer_delete(*primitive_vertex_buffer);
     index_buffer_delete(*primitive_index_buffer);
@@ -61,9 +55,10 @@ draw_screenspace_line :: (
     layer: ScreenspaceLayer = ._0,
     viewport: s32 = -1
 ) -> bool {
+    using context.curry;
     lock(*primitive_draw_mutex);
     defer unlock(*primitive_draw_mutex);
-
+//
     new_vertex_count := primitive_vertex_count + 4;
     new_index_count := primitive_index_count + 6;
     if new_vertex_count > MAX_PRIMITIVE_DRAW_VERTICES || new_index_count > MAX_PRIMITIVE_DRAW_INDICES then return false;
@@ -84,6 +79,7 @@ draw_screenspace_box :: (
     do_fill := false,
     viewport: s32 = -1
 ) -> bool {
+    using context.curry;
     success := true;
     if do_fill {
         half_line_width := line_width * 0.5;
@@ -117,6 +113,7 @@ draw_screenspace_box :: (
 }
 
 dispatch_primitive_screenspace_draws :: () {
+    using context.curry;
     lock(*primitive_draw_mutex);
     defer unlock(*primitive_draw_mutex);
 

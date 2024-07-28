@@ -1,234 +1,130 @@
-#import "CurryEngine"(
-    USE_GRAPHICS_API="opengl", 
-    GRAPHICS_API_DEBUG=true,
-    INCLUDE_IMGUI=true
-);
-#import "Basic";
-#import "Math";
-#import "GL";
+// TODO:
+// - sprite hash-lookup pool (purpose: makes for faster iteration time, don't.
+// need a locked-down way to address sprite data - can just refer to them all by name);
+// - asset name hashing metaprogram: before compilation, recursively iterate over a directory, finds
+// all files with a matching extension and generates a file with constants a constant struct per asset:
+    // - hash of the file name 
+    // - full paths to the file
+// example usage:
+// k := get_sprite(sprite_asset_struct)
+//      ... first, it will attempt to find a sprite with the hash as an ID      
+//      ... if that doesn't exist, it will load the sprite at the given path and tag it with the hash as an id
+// also, because the IDs are generated from the file names, an id could be generated at runtime using the filename
+// for whatever reason.
+// though the sprite asset structs are constants, they are treated as runtime data for simplicity's sake. making a
+// polymorph per sprite seems dumb, plus probably quite a bit of the time we want to load sprites or whatever without
+// knowing which sprite we want.
 
-MIN_LEFT_BAR_WIDTH : s32 = 15;
-left_bar_width := 500;
-camera : Camera;
-tex_checker: Texture;
-sprite_checker: Sprite;
-camera_origin_y : float;
-on_ground := true;
-camera_velocity_y := 0.0;
-sprite_quat: Quaternion;
-log_interval_counter := 0;
+test_sprite: Sprite;
+test_camera : Camera;
 
 main :: () {
+    defer log("exited without spice");
     curry := create_curry();
-    using curry;
 
-    // --- runtime parameterization ---
-    render_in_separate_thread = true;
-    delta_time_init = 1.0 / 120.0;
-
-    // --- set the functions that will be called during the game loop ---
-    init_game_thread_proc = initialize_game_thread;
-    init_render_thread_proc = initialize_render_thread;
-    pre_input_proc = pre_input;
-    pre_render_proc = pre_render;
-    init_render_proc = init_render;
-    render_in_game_thread_proc = render;
-    render_in_render_thread_proc = render;
-    end_frame_proc = end_frame;
-
-    run_game(*curry);
-}
-
-
-initialize_render_thread :: (curry: *Curry, dt: float32) {
-    camera = camera_create(.PERSPECTIVE, ._3D, ViewSettingsPerspective.{});
-    camera.perspective_settings.vertical_fov_degrees = 80;
-    camera_origin_y = camera.y;
-    if false {
-        tex_checker = texture_create("checker.png", .{filter_minification=GL_NEAREST, filter_magnification=GL_NEAREST});
-        sprite_checker = sprite_create(*tex_checker); 
-        sprite_checker.scale = 1.0;
-        sprite_checker.frame_count = 8;
-        sprite_save(*sprite_checker, "test_checker.cspr");
-    } else {
-        sprite_checker = sprite_load("test_checker.cspr");
-    }
-}
-
-initialize_game_thread :: (curry: *Curry, dt: float32) {
-
-}
-
-pre_input :: (curry: *Curry, dt: float32) { 
-
-}
-
-pre_render :: (curry: *Curry, dt: float32) { 
-    CAM_SPEED :: 25.0;
-    cam_fore := camera_forward(*camera);
-    // (potentially not true)
-    cam_right := camera_right(*camera);
-    if key_down(#char "w") then camera.position += cam_fore * CAM_SPEED * dt;
-    if key_down(#char "s") then camera.position -= cam_fore * CAM_SPEED * dt;
-    if key_down(#char "d") then camera.position += cam_right * CAM_SPEED * dt;
-    if key_down(#char "a") then camera.position -= cam_right * CAM_SPEED * dt;
-
-    CAM_ROTATE_SPEED :: PI;
-    rotate_sign := 
-        ifx key_down(#char "q") then 1.0 
-        else ifx key_down(#char "e") then -1.0
-        else 0.0;
-    if rotate_sign {
-        rotate_delta := rotate_sign * CAM_ROTATE_SPEED * dt * 0.5;            
-        axis_rotation := Vector3.{0.0, 1.0, 0.0} * sin(rotate_delta);
-        rotate_quat: Quaternion = ---;
-        rotate_quat.xyz = axis_rotation;
-        rotate_quat.w = cos(rotate_delta);
-        camera.orientation *= rotate_quat;
-    }
-
-    // jump
-    if key_just_pressed(#char "j") && on_ground {
-        on_ground = false;
-        camera_velocity_y = 60.0;
-    }
-
-    camera_velocity_y -= 98.0 * dt;
-    camera.y += camera_velocity_y * dt;
-
-    if camera.y < camera_origin_y {
-        on_ground = true;
-        camera.y = camera_origin_y;
-        camera_velocity_y = 0.0;
-    }
-}
-
-init_render :: (curry: *Curry, dt: float32) {
-    sprite_animate(*sprite_checker, dt);
-}
-
-render :: (using curry: *Curry, dt: float32) { 
-    top_bar_height: s32;
-    if (ImGui.BeginMainMenuBar()) {
-        if (ImGui.BeginMenu("Menu")) {
-            ImGui.MenuItem("it's a menu I guess", "CTRL+Z");
-            ImGui.EndMenu();
+    {
+        using curry;
+        #if !USING_CURRY_EDITOR {
+            window_settings.clear_color = .{xx 0xe2 / 255.0, xx 0x6a / 255.0, xx 0x2c / 255.0};
         }
-        top_bar_height = xx ImGui.GetFrameHeight();
-        ImGui.EndMainMenuBar();
+        render_in_separate_thread = true;
+        init_game_proc = init_game;
+        init_render_thread_proc = init_render_thread;
+        post_input_proc = post_input;
+        init_render_proc = init_render;
+        render_proc = render;
+        end_frame_proc = end_frame;
+        game_loop_end_proc = game_loop_end;
+        render_thread_end_proc = render_thread_end;
     }
 
-    left_bar_width = clamp(left_bar_width, MIN_LEFT_BAR_WIDTH, window_settings.width - MIN_LEFT_BAR_WIDTH);
-    left_bar_height := window_settings.height - top_bar_height;
+    init_game(*curry);
 
-    ImGui.SetNextWindowSize(.{xx left_bar_width, xx left_bar_height});
-    ImGui.SetNextWindowPos(.{0.0, xx top_bar_height});
+    run_game();
+}
 
-    LEFT_BAR_FLAGS : ImGui.WindowFlags : .NoTitleBar | .NoMove | .NoResize;
-    if (ImGui.Begin("Left Side Bar", null, xx LEFT_BAR_FLAGS)) {
-        ImGui.ColorEdit3("clear color", xx *curry.window_settings.clear_color.r);
-        ImGui.Text("fps: %", 1.0 / dt);
-        ImGui.End();
+// [game thread]
+// called after all engine resources have been initialized, just before the game loop starts.
+// if render_in_separate_thread is true, called after init_render_thread()
+init_game :: () {
+    using context.curry;
+}
+
+// [render thread] (only called if render_in_separate_thread is true)
+// called after all engine resources have been initialized, just before the render loop starts, and
+// before init_game()
+init_render_thread :: () {
+    using context.curry;
+
+    test_sprite = sprite_load(SPRITE_SCOTT);
+    test_camera = camera_create(.PERSPECTIVE, ._3D);
+}
+
+// [game thread]
+// called after getting input. game thread step 1.
+post_input :: () {
+    using context.curry;
+
+    if key_down(#char "w") {
+        test_camera.position += camera_forward(*test_camera) * 100.0 * delta_time;
     }
-
-    // game viewport
-    push_viewport(.{
-        offset_left.type = .PIXEL_COUNT,
-        offset_left.pixel_count = xx left_bar_width,
-        offset_top.type = .PIXEL_COUNT,
-        offset_top.pixel_count = xx top_bar_height
-    });
-
-    // left view
-    // push_viewport(.{offset_right.proportion=0.5});
-    // cache_viewport_rect(curry);
-    // viewport_rect := last_cached_viewport_rect();
-    // draw_screenspace_line(.{-10.0, 0.0}, .{490.0, 1000.0}, COLOR4B_SKY, 20.0, ._2);
-    // draw_screenspace_line(.{-20.0, 0.0}, .{480.0, 1000.0}, COLOR4B_SALMON, 20.0, ._3);
-    // draw_screenspace_line(.{0.0, 0.0}, .{500.0, 1000.0}, COLOR4B_SEA, 20.0, ._1);
-    // draw_screenspace_box(
-        // .{0.0, 0.0},
-        // .{xx curry.window_settings.width, xx curry.window_settings.height},
-        // .{192, 10, 10, 30},
-        // 0.0,
-        // ._4,
-        // true
-    // );
-    // draw_screenspace_box(
-        // .{0.0, 0.0},
-        // .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
-        // .{200, 200, 200, 255},
-        // 4.0,
-        // ._10
-    // );
-    // pop_viewport();
-    //
-//
-    // // right view
-    // push_viewport(.{offset_left.proportion=0.5});
-//
-    // // bottom right
-    // push_viewport(.{offset_top.proportion=0.5});
-    // cache_viewport_rect(curry);
-    // viewport_rect = last_cached_viewport_rect();
-    // draw_screenspace_line(.{-10.0, 0.0}, .{490.0, 1000.0}, COLOR4B_SKY, 20.0, ._1);
-    // draw_screenspace_line(.{-20.0, 0.0}, .{480.0, 1000.0}, COLOR4B_SALMON, 20.0, ._2);
-    // draw_screenspace_line(.{0.0, 0.0}, .{500.0, 1000.0}, COLOR4B_SEA, 20.0, ._0);
-    // draw_screenspace_box(
-        // .{0.0, 0.0},
-        // .{xx curry.window_settings.width, xx curry.window_settings.height},
-        // .{10, 192, 10, 30},
-        // 0.0,
-        // ._4,
-        // true
-    // );
-    // draw_screenspace_box(
-        // .{0.0, 0.0},
-        // .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
-        // .{200, 200, 200, 255},
-        // 4.0,
-        // ._10
-    // );
-    // pop_viewport();
-
-    // top right
-    // push_viewport(.{offset_bottom.proportion=0.5});
-    cache_viewport_rect(curry);
-
-    // after camera moves...
-    set_viewport_for_draw(last_cached_viewport());
-    viewport_rect := last_cached_viewport_rect();
-    view_projection := viewport_view_projection_matrix(camera, viewport_rect);
-
-    sprite_location_mat: Matrix4 = ---;
-    identity(*sprite_location_mat);
-    rotation := cast(float32) seconds_since_init();
-    half_rotation := rotation * 0.5;
-    axis := Vector3.{0.0, 1.0, 0.0};
-    sin_axis := axis * sin(half_rotation);
-    sprite_quat.xyz = sin_axis;
-    sprite_quat.w = cos(half_rotation);
-    sprite_model := rotate(*sprite_location_mat, sprite_quat);
-    sprite_mvp := view_projection * sprite_model;
-
-    // draw everything
-    sprite_draw(*sprite_checker, .{}, *sprite_mvp);
-    // ....
-
-    draw_screenspace_box(
-        .{0.0, 0.0},
-        .{xx viewport_rect.dimensions.x, xx viewport_rect.dimensions.y},
-        .{200, 200, 200, 255},
-        4.0,
-        ._10
-    );
-
-    pop_viewport();
-    // pop_viewport();
-    // pop_viewport();
+    if key_down(#char "s") {
+        test_camera.position += -camera_forward(*test_camera) * 100.0 * delta_time;
+    }
 }
 
-end_frame :: (curry: *Curry, dt: float32) { 
-
+// [game thread]
+// called before rendering. game thread step 2.
+// if render_in_separate_thread is true, this is called while the render thread isn't working, so it is safe to 
+// transfer data between the threads. note that the graphics context lives on the thread where rendering is done,
+// so stuff like graphics API data is only available to that thread.
+init_render :: () {
+    using context.curry;
 }
 
+// [render thread OR game thread]  (depends on render_in_separate_thread)
+// called after clearing the image with the clear color and before dispatching draws, so this is where all rendering 
+// must be done. always called after init_render(). if render_in_separate_thread is true, this function is run in 
+// parallel with the game loop; the render thread syncs to the game loop once per frame.
+render :: () {
+    using context.curry;
+
+    sprite_animate(*test_sprite, delta_time);
+    view_projection := viewport_view_projection_matrix(test_camera, last_cached_viewport_rect());
+    sprite_draw(*test_sprite, .{}, *view_projection);
+}
+
+// [game thread]
+// called just before resetting temporary storage and frame time syncing.
+end_frame :: () {
+    using context.curry;
+}
+
+// [game thread]
+// called after the game loop has been exited, before engine resource cleanup. if render_in_separate_thread is true, 
+// called after render_thread_end() is completed, so graphics resources will have already been cleaned up.
+game_loop_end :: () {
+    using context.curry;
+}
+
+// [render thread]
+// called after the render loop has been exited, before graphics resource cleanup.
+render_thread_end :: () {
+    using context.curry;
+}
+
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ---------------------------------------------------------------------------------------------------------------------
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+USING_CURRY_EDITOR :: false;
+
+#import "CurryEngine" (
+    GRAPHICS_API_DEBUG = true,
+    USE_EDITOR = USING_CURRY_EDITOR
+);
+
+#import "Basic";
+#import "Math";
+
+#load "assets.jai";

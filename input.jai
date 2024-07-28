@@ -81,7 +81,7 @@ update_input :: () {
 
     switch_readings: [SDL_NUM_SCANCODES]SwitchReading;
     mouse_readings: [3]SwitchReading;
-    #if INCLUDE_IMGUI imgui_io := ImGui.GetIO();
+    #if USING_IMGUI imgui_io := ImGui.GetIO();
 
     SDL_GetMouseState(*mouse.x, *mouse.y);
     if mouse.y != -1 {
@@ -114,7 +114,7 @@ update_input :: () {
                     else mouse_readings[button_index].up = true;
             }
         case SDL_TEXTINPUT;
-            #if INCLUDE_IMGUI {
+            #if USING_IMGUI {
                 if context.curry.frame_count == 0 then continue;
                 imgui_io.AddInputCharactersUTF8(imgui_io, xx event.text.text.data);
             }
@@ -130,7 +130,7 @@ update_input :: () {
                 else switch_readings[xx key].up = true;
 
             // TODO: handle modifiers outside of ImGui
-            #if INCLUDE_IMGUI {
+            #if USING_IMGUI {
                 if context.curry.frame_count == 0 then continue;
                 imgui_io.KeysDown[key] = key_is_down;
                 kmod := SDL_GetModState();
@@ -142,7 +142,7 @@ update_input :: () {
         }
     }
 
-    #if INCLUDE_IMGUI {
+    #if USING_IMGUI {
         if mouse.wheel == {
         case .NOT_SCROLLING;
             context.curry.gui_data.mouse_wheel = 0.0;

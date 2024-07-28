@@ -46,8 +46,6 @@ struct_string_assign :: (s: *$StructType, member_name: string, value: string) {
     #insert #run gen_code(StructType);
 }
 
-
-
 struct_text_file_line_iterate :: (
     s: *$StructType, file_substring: string, line_count: *s64, token_left: *string, token_right: *string
 ) -> bool {

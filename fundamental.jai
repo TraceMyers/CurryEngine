@@ -51,7 +51,7 @@ WindowSettings :: struct {
         dimensions: IntVector2 = ---;
 }
 
-#if INCLUDE_IMGUI {
+#if USING_IMGUI {
     GuiData :: struct {
         imgui_context: *ImGui.ImGuiContext;
         mouse_pressed := bool.[false, false, false];
@@ -186,6 +186,22 @@ wait_for_condition :: ($condition: Code, sleep_interval_ms := 0.1) #expand {
     }
 }
 
+os_load_user_proc :: (lib: *Library_Info, name: string) -> *void {
+    // for lib.symbol_names {
+        // if it == name {
+            // return true;
+        // }
+    // }
+    c_name := temp_c_string(name);
+    #if OS == .WINDOWS {
+        proc := GetProcAddress(lib.handle, c_name);
+    } else #if OS == .LINUX || OS == .MACOS {
+        proc := dlsym(lib.handle, c_name);
+    }
+    return proc;
+}
+
+MAX_ENTITY_COUNT :: 32767;
 
 Curry :: struct {
     // game runtime variables
@@ -201,12 +217,13 @@ Curry :: struct {
     // burns cycles at the end of each frame to ensure we're syncing each frame with high accuracy
     high_accuracy_frame_time_targeting := true;
     quit: bool;
-    #if INCLUDE_IMGUI gui_data: GuiData;
-    // game runtime constants (unless you don't want them to be...)
+    #if USING_IMGUI gui_data: GuiData;
     game_thread_id: s32;
     render_thread_id: s32;
+
     project_directory: string;
     asset_directory: string;
+
     window_name: string;
     delta_time_init := 0.0;
     delta_time_min := 0.0;
@@ -214,16 +231,37 @@ Curry :: struct {
     render_in_separate_thread := false;
     render_thread_initialized: u8;
     auto_end := true;
-    init_game_thread_proc: UserProc;
+    init_game_proc: UserProc;
     init_render_thread_proc: UserProc;
-    pre_input_proc: UserProc;
-    pre_render_proc: UserProc;
+    post_input_proc: UserProc;
     init_render_proc: UserProc;
-    render_in_game_thread_proc: UserProc;
-    render_in_render_thread_proc: UserProc;
+    render_proc: UserProc;
     end_frame_proc: UserProc;
-    before_quit_render_thread_proc: UserProc;
+    game_loop_end_proc: UserProc;
+    render_thread_end_proc: UserProc;
+
+    viewport_hierarchy: []Viewport;
+    viewport_hierarchy_buffer: [MAX_VIEWPORT_DEPTH]Viewport;
+    viewport_rects: [..]ViewportRect;
+    cached_window_width_for_viewports: s32;
+    cached_window_height_for_viewports: s32;
+
+    queued_screenspace_lines : [MAX_VIEWPORT_RECT_COUNT][..]ScreenspaceLine;
+    primitive_shader : Shader;
+    primitive_vertex_array : VertexArray;
+    primitive_vertex_buffer : VertexBuffer;
+    primitive_index_buffer : IndexBuffer;
+    primitive_vertex_count : u64;
+    primitive_index_count : u64;
+    primitive_draw_mutex: Mutex;
+
+    // TODO: should be a pool of textures. each thing can have its own sprite...................?
+    sprites: DynamicPool(Sprite);
+
+    entity_data: *EntityDataPack;
 }
+
+
 
 create_curry :: (window_name : string = DEFAULT_WINDOW_NAME) -> Curry {
     curry: Curry;
@@ -246,7 +284,7 @@ create_curry :: (window_name : string = DEFAULT_WINDOW_NAME) -> Curry {
         exit(1);
     }
 
-    #if INCLUDE_IMGUI then curry.gui_data.imgui_context = ImGui.CreateContext();
+    #if USING_IMGUI then curry.gui_data.imgui_context = ImGui.CreateContext();
 
     return curry;
 }

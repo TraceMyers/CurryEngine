@@ -1,8 +1,8 @@
-width = 2560
-height = 1529
-position_x = 0
-position_y = 23
+width = 1277
+height = 782
+position_x = 446
+position_y = -1330
 fullscreen = false
-clear_color_r = 0.272237
-clear_color_g = 0.129758
-clear_color_b = 0.735294
+clear_color_r = 0.886275
+clear_color_g = 0.415686
+clear_color_b = 0.172549

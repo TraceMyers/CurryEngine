@@ -84,6 +84,11 @@ sprite_save :: (using sprite: *Sprite, file_path: string) {
     ); 
 }
 
+sprite_load :: inline (asset_ref: CurryAssetReference) -> Sprite {
+    full_path := tprint("%/%", context.curry.asset_directory, asset_ref.asset_path);
+    return sprite_load(full_path);
+}
+
 sprite_load :: (file_path: string) -> Sprite {
     stbi_set_flip_vertically_on_load(0);
     defer stbi_set_flip_vertically_on_load(1);
